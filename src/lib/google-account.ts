@@ -4,7 +4,7 @@ import {
   loadCalendarSnapshot,
   parseCookieValue,
   type GCalProfile,
-} from "@/lib/gcal";
+} from "./gcal";
 
 export type GoogleIdentity = {
   userId: string;

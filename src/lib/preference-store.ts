@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from "./supabase-server";
-import type { UserContextEntry, UserProfileContext } from "@/lib/response-schema";
+import type { UserContextEntry, UserProfileContext } from "./response-schema";
 
 type PreferenceSignal = {
   preference: string;

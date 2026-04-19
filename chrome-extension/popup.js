@@ -5,6 +5,7 @@ const API_BASE = 'http://localhost:3000';
 let pageUrl = '';
 let pageTitle = '';
 let pageContent = '';
+let appointment = null;
 let taskMemory = null;
 let isSending = false;
 
@@ -105,6 +106,7 @@ function renderAppointment(data) {
   document.getElementById('prep-block').classList.add('hidden');
 
   const appt = data.appointment;
+  appointment = appt || null;
   if (!appt || typeof appt !== 'object') {
     showState('state-empty');
     return;
@@ -194,7 +196,7 @@ async function handleSafe() {
     const res = await fetch(`${API_BASE}/api/scam-check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: pageUrl, pageTitle, content: pageContent }),
+      body: JSON.stringify({ url: pageUrl, pageTitle, content: pageContent, visibleText: pageContent }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -221,13 +223,18 @@ async function handleNext() {
       body: JSON.stringify({
         url: pageUrl,
         pageTitle,
-        pageContent: pageContent || undefined,
+        visibleText: pageContent || undefined,
+        content: pageContent || undefined,
         question: 'What do I do next?',
         taskMemory: taskMemory || undefined,
+        appointment: appointment || undefined,
       }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    if (data.task_memory) {
+      taskMemory = data.task_memory;
+    }
     const tone = deriveTone(data.riskLevel);
     appendMessage(data.message || data.explanation || data.next_step || 'I am ready to help.', 'assistant', tone);
   } catch {
@@ -357,10 +364,21 @@ async function sendMessage() {
     const res = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, url: pageUrl, pageTitle }),
+      body: JSON.stringify({
+        message: text,
+        url: pageUrl,
+        pageTitle,
+        visibleText: pageContent || undefined,
+        pageSummary: pageContent ? pageContent.slice(0, 500) : undefined,
+        taskMemory: taskMemory || undefined,
+        appointment: appointment || undefined,
+      }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    if (data.task_memory) {
+      taskMemory = data.task_memory;
+    }
     const tone = deriveTone(data.riskLevel);
     appendMessage(data.message || data.reply || 'I am here to help.', 'assistant', tone);
   } catch {
@@ -434,9 +452,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load appointments
   showState('state-loading');
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  const timer = setTimeout(() => controller.abort(), 15000);
 
-  fetch(`${API_BASE}/api/appointments`, { signal: controller.signal })
+  fetch(`${API_BASE}/api/appointments?includeAdvice=false`, { signal: controller.signal })
     .then(res => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();

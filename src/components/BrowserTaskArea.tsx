@@ -34,6 +34,7 @@ interface StepEvent {
   status?: string;
   current_url?: string | null;
   current_page_title?: string | null;
+  screenshot_b64?: string | null;
 }
 
 function normalizeBrowserUrl(rawUrl: string) {
@@ -97,6 +98,7 @@ const BrowserTaskArea = forwardRef<BrowserTaskAreaHandle, BrowserTaskAreaProps>(
     ref,
   ) {
     const [status, setStatus] = useState<BrowserTaskStatus>("idle");
+    const [screenshot, setScreenshot] = useState<string | null>(null);
     const [, setSteps] = useState<StepEvent[]>([]);
     const eventSourceRef = useRef<EventSource | null>(null);
     const stepCountRef = useRef(0);
@@ -122,6 +124,7 @@ const BrowserTaskArea = forwardRef<BrowserTaskAreaHandle, BrowserTaskAreaProps>(
         eventSourceRef.current = null;
 
         setSteps([]);
+        setScreenshot(null);
         setStatus("running");
         stepCountRef.current = 0;
         onPageTitleChange(trimmedGoal);
@@ -165,6 +168,10 @@ const BrowserTaskArea = forwardRef<BrowserTaskAreaHandle, BrowserTaskAreaProps>(
 
               if (payload.current_page_title) {
                 onPageTitleChange(payload.current_page_title);
+              }
+
+              if (payload.screenshot_b64) {
+                setScreenshot(payload.screenshot_b64);
               }
 
               const nextUrl = extractNavigationUrl(payload.action);
@@ -211,7 +218,12 @@ const BrowserTaskArea = forwardRef<BrowserTaskAreaHandle, BrowserTaskAreaProps>(
 
     return (
       <div className="browser-area" id="browser-task-area">
-        <EmbeddedBrowserFrame currentUrl={currentUrl} pageTitle={currentPageTitle} status={status} />
+        <EmbeddedBrowserFrame
+          currentUrl={currentUrl}
+          pageTitle={currentPageTitle}
+          screenshotB64={screenshot}
+          status={status}
+        />
       </div>
     );
   },

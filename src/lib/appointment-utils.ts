@@ -1,4 +1,4 @@
-import type { AppointmentContext } from "@/lib/response-schema";
+import type { AppointmentContext } from "./response-schema";
 
 type AppointmentRow = {
   title?: string | null;

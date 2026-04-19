@@ -4,8 +4,8 @@ import {
   resolveGoogleAccount,
   type GoogleIdentity,
   type ResolvedGoogleAccount,
-} from "@/lib/google-account";
-import type { UserContextEntry } from "@/lib/response-schema";
+} from "./google-account";
+import type { UserContextEntry } from "./response-schema";
 
 export type OnboardingProfileDraft = {
   name?: string;

@@ -1,19 +1,36 @@
-import { orchestrateCopilot } from "@/lib/orchestrator";
-import { logScamCheck } from "@/lib/scam-store";
+import { logScamCheck } from "../../../lib/scam-store";
+import type { CopilotRequest, CopilotResponse } from "../../../lib/response-schema";
+
+type ScamCheckDependencies = {
+  orchestrateCopilot?: (input: CopilotRequest) => Promise<CopilotResponse>;
+  logScamCheck?: typeof logScamCheck;
+};
 
 const DEMO_USER_ID = "demo-user-001";
 
 export async function POST(request: Request) {
+  return handleScamCheckRequest(request);
+}
+
+export async function handleScamCheckRequest(
+  request: Request,
+  deps: ScamCheckDependencies = {},
+) {
   try {
-    const body = await request.json();
-    const url = body.url;
-    
+    const body = (await request.json()) as Record<string, unknown>;
+    const url = typeof body.url === "string" ? body.url : undefined;
+
+    const orchestrateCopilot =
+      deps.orchestrateCopilot ?? (await import("../../../lib/orchestrator")).orchestrateCopilot;
     const response = await orchestrateCopilot({
       mode: "scam_check",
-      query: body.content || body.question,
-      url: body.url,
-      pageTitle: body.pageTitle,
-      visibleText: body.content,
+      query:
+        (typeof body.content === "string" && body.content) ||
+        (typeof body.question === "string" && body.question) ||
+        undefined,
+      url: typeof body.url === "string" ? body.url : undefined,
+      pageTitle: typeof body.pageTitle === "string" ? body.pageTitle : undefined,
+      visibleText: typeof body.content === "string" ? body.content : undefined,
     });
 
     const classification =
@@ -24,7 +41,8 @@ export async function POST(request: Request) {
             : "not-sure";
 
     // Log to Supabase in the background — don't await, don't block the response
-    logScamCheck({
+    const log = deps.logScamCheck ?? logScamCheck;
+    log({
       user_id: DEMO_USER_ID,
       url: url ?? null,
       classification: classification,

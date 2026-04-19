@@ -122,6 +122,8 @@ async def run_agent(
     task: str,
     emit: Callable[[dict], Awaitable[None]],
     headless: bool | None = None,
+    initial_url: str | None = None,
+    initial_page_title: str | None = None,
 ) -> None:
     """
     Run a browser-use agent for the given task.
@@ -139,18 +141,22 @@ async def run_agent(
 
     step_count = 0
 
-    async def capture_page_state() -> tuple[str | None, str | None]:
+    async def capture_page_state() -> tuple[str | None, str | None, str | None]:
         try:
-            current_url = await session.get_current_page_url()
+            state = await session.get_browser_state_summary(include_screenshot=True)
+            return state.url or None, state.title or None, state.screenshot
         except Exception:
-            current_url = None
+            try:
+                current_url = await session.get_current_page_url()
+            except Exception:
+                current_url = None
 
-        try:
-            current_page_title = await session.get_current_page_title()
-        except Exception:
-            current_page_title = None
+            try:
+                current_page_title = await session.get_current_page_title()
+            except Exception:
+                current_page_title = None
 
-        return current_url, current_page_title
+            return current_url, current_page_title, None
 
     async def on_step_end(agent_instance: Agent) -> None:
         nonlocal step_count
@@ -195,7 +201,7 @@ async def run_agent(
 
         step_count += 1
         action_str = "; ".join(actions_desc) if actions_desc else None
-        current_url, current_page_title = await capture_page_state()
+        current_url, current_page_title, current_screenshot = await capture_page_state()
 
         await emit({
             "type": "step",
@@ -204,6 +210,7 @@ async def run_agent(
             "action": action_str,
             "current_url": current_url,
             "current_page_title": current_page_title,
+            "screenshot_b64": current_screenshot,
         })
 
         # Submit guard
@@ -221,6 +228,20 @@ async def run_agent(
             browser_session=session,
             max_failures=3,
         )
+
+        if initial_url:
+            await session.navigate_to(initial_url)
+            initial_current_url, initial_current_page_title, initial_screenshot = await capture_page_state()
+            step_count += 1
+            await emit({
+                "type": "step",
+                "step": step_count,
+                "thought": "Opened the starting page.",
+                "action": f"navigate → {initial_url}",
+                "current_url": initial_current_url or initial_url,
+                "current_page_title": initial_current_page_title or initial_page_title,
+                "screenshot_b64": initial_screenshot,
+            })
 
         await agent.run(max_steps=40, on_step_end=on_step_end)
         await emit({"type": "done"})

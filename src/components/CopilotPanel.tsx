@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface CopilotPanelProps {
   onClose: () => void;
@@ -15,10 +15,38 @@ type PanelState = {
   detail: string;
 };
 
+type AppointmentState = {
+  connected?: boolean;
+  summary?: string | null;
+  whenLabel?: string | null;
+  timeLabel?: string | null;
+  location?: string | null;
+  description?: string | null;
+  prepNotes?: string | null;
+  source?: string | null;
+  message?: string;
+};
+
+type TaskMemoryState = {
+  current_task?: string | null;
+  task_type?: string | null;
+  task_goal?: string | null;
+  current_stage_index?: number | null;
+  current_stage_title?: string | null;
+  current_stage_detail?: string | null;
+  next_stage_title?: string | null;
+  next_stage_detail?: string | null;
+  stage_plan?: Array<{ title: string; detail?: string | null }>;
+  status?: string | null;
+  last_step?: string | null;
+  current_url?: string | null;
+  page_title?: string | null;
+};
+
 const QUICK_ACTIONS = [
-  { label: "What was I doing?", message: "What was I doing?" },
-  { label: "Show appointments", message: "Show me my appointments." },
-  { label: "Is this safe?", message: "Is this safe?" },
+  { label: "What's next?", kind: "next" as const },
+  { label: "Is this safe?", kind: "safe" as const },
+  { label: "What was I doing?", kind: "memory" as const },
 ];
 
 export default function CopilotPanel({
@@ -30,6 +58,8 @@ export default function CopilotPanel({
 }: CopilotPanelProps) {
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
+  const [appointment, setAppointment] = useState<AppointmentState | null>(null);
+  const [taskMemory, setTaskMemory] = useState<TaskMemoryState | null>(null);
   const [panelState, setPanelState] = useState<PanelState>({
     title: "Ready",
     detail: "Pick a small action or type a short question.",
@@ -38,6 +68,42 @@ export default function CopilotPanel({
   const updateState = (title: string, detail: string) => {
     setPanelState({ title, detail });
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadContext() {
+      try {
+        const [memoryRes, appointmentRes] = await Promise.all([
+          fetch("/api/memory"),
+          fetch("/api/appointments?includeAdvice=false"),
+        ]);
+
+        const memoryData = (await memoryRes.json()) as TaskMemoryState | null;
+        const appointmentData = (await appointmentRes.json()) as {
+          appointment?: AppointmentState | null;
+        };
+
+        if (cancelled) {
+          return;
+        }
+
+        setTaskMemory(memoryData);
+        setAppointment(appointmentData.appointment || null);
+      } catch {
+        if (!cancelled) {
+          setTaskMemory(null);
+          setAppointment(null);
+        }
+      }
+    }
+
+    void loadContext();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const sendChatMessage = async (message: string) => {
     const trimmed = message.trim();
@@ -52,9 +118,18 @@ export default function CopilotPanel({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed }),
+        body: JSON.stringify({
+          message: trimmed,
+          url: currentUrl,
+          pageTitle: currentPageTitle,
+          appointment,
+          taskMemory,
+        }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as { message?: string; explanation?: string; task_memory?: TaskMemoryState | null };
+      if (data.task_memory) {
+        setTaskMemory(data.task_memory);
+      }
       updateState("Reply", data.message || data.explanation || "I am here to help.");
     } catch {
       updateState("Error", "I could not connect right now. Please try again.");
@@ -71,6 +146,65 @@ export default function CopilotPanel({
     });
     updateState("Browser trace", "The embedded browser trace is ready below.");
   };
+
+  const askNextStep = async () => {
+    setLoading(true);
+    updateState("Thinking", "SafeStep is checking the next step now.");
+
+    try {
+      const res = await fetch("/api/next-step", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: "What do I do next?",
+          url: currentUrl,
+          pageTitle: currentPageTitle,
+          visibleText: currentPageTitle,
+          taskMemory,
+          appointment,
+        }),
+      });
+      const data = (await res.json()) as { message?: string; explanation?: string; task_memory?: TaskMemoryState | null };
+      if (data.task_memory) {
+        setTaskMemory(data.task_memory);
+      }
+      updateState("Next step", data.message || data.explanation || "I am here to help.");
+    } catch {
+      updateState("Error", "I could not check the next step right now.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkSafety = async () => {
+    setLoading(true);
+    updateState("Thinking", "SafeStep is checking for warning signs.");
+
+    try {
+      const res = await fetch("/api/scam-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: currentUrl,
+          pageTitle: currentPageTitle,
+          content: currentPageTitle,
+        }),
+      });
+      const data = (await res.json()) as { explanation?: string; message?: string; classification?: string };
+      updateState(
+        data.classification === "risky" ? "Warning" : "Reply",
+        data.explanation || data.message || "I checked this page for you.",
+      );
+    } catch {
+      updateState("Error", "I could not check this page right now.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const currentTask = taskMemory?.current_task || "Waiting for a saved task.";
+  const currentStage = taskMemory?.current_stage_title || "No stage yet.";
+  const nextStage = taskMemory?.next_stage_title || "No next stage yet.";
 
   return (
     <div
@@ -132,6 +266,17 @@ export default function CopilotPanel({
           <p className="mt-1 text-sm text-text-secondary break-all">
             {currentUrl || "The embedded browser will show the current page here."}
           </p>
+          <div className="mt-4 rounded-2xl border border-surface-200 bg-surface-50 px-4 py-3">
+            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
+              Planner
+            </p>
+            <p className="mt-1 text-base font-semibold text-text-primary">{currentTask}</p>
+            <p className="mt-1 text-sm text-text-secondary">Current step: {currentStage}</p>
+            <p className="mt-1 text-sm text-text-secondary">Next step: {nextStage}</p>
+            {appointment?.summary ? (
+              <p className="mt-2 text-sm text-text-secondary">Appointment: {appointment.summary}</p>
+            ) : null}
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -140,7 +285,15 @@ export default function CopilotPanel({
               key={action.label}
               type="button"
               disabled={loading}
-              onClick={() => void sendChatMessage(action.message)}
+              onClick={() => {
+                if (action.kind === "next") {
+                  void askNextStep();
+                } else if (action.kind === "safe") {
+                  void checkSafety();
+                } else {
+                  void sendChatMessage("What was I doing?");
+                }
+              }}
               className="flex w-full items-center justify-between rounded-2xl border border-surface-200 bg-white px-4 py-3 text-left text-base font-medium leading-snug text-text-primary transition-colors hover:border-primary-300 hover:bg-primary-50 disabled:opacity-50"
             >
               <span>{action.label}</span>
