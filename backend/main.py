@@ -108,6 +108,17 @@ async def stream_events():
     )
 
 
+@app.post("/api/extract")
+async def extract_info(req: TaskRequest):
+    """Run a browser agent extraction task synchronously and return the result."""
+    from agent import extract_from_page
+    try:
+        result = await extract_from_page(req.task)
+        return {"result": result}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
 @app.get("/api/status")
 async def get_status():
     """Return current agent status."""

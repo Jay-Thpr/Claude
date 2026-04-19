@@ -24,6 +24,31 @@ llm = ChatGoogle(
 SUBMIT_KEYWORDS = {"submit", "apply now", "final submit", "send application", "confirm payment", "place order"}
 
 
+async def extract_from_page(task: str) -> str:
+    """
+    Run a browser-use agent for extraction tasks.
+    Returns the agent's final text result.
+    """
+    profile = BrowserProfile(headless=False)
+    session = BrowserSession(browser_profile=profile)
+
+    try:
+        agent = Agent(
+            task=task,
+            llm=llm,
+            browser_session=session,
+            max_failures=3,
+        )
+        result = await agent.run(max_steps=20)
+        # browser_use returns an AgentHistoryList; final_result() extracts the last done action text
+        return result.final_result() or ""
+    finally:
+        try:
+            await session.stop()
+        except Exception:
+            pass
+
+
 async def run_agent(task: str, emit: Callable[[dict], Awaitable[None]]) -> None:
     """
     Run a browser-use agent for the given task.
