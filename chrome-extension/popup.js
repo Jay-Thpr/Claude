@@ -75,8 +75,15 @@ function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function appendMessage(text, role, tone) {
+function appendMessage(text, role, tone, bullets) {
   const el = document.createElement('div');
+
+  let bulletsHtml = '';
+  if (bullets && bullets.length) {
+    bulletsHtml = '<ul class="msg-bullets">' +
+      bullets.map(b => `<li>${escapeHtml(b)}</li>`).join('') +
+      '</ul>';
+  }
 
   if (role === 'user') {
     el.className = 'msg msg-user';
@@ -87,7 +94,7 @@ function appendMessage(text, role, tone) {
   } else {
     el.className = 'msg msg-assistant';
     if (tone && tone !== 'neutral') el.dataset.tone = tone;
-    el.innerHTML = `<div class="msg-label">SafeStep</div><div>${escapeHtml(text)}</div>`;
+    el.innerHTML = `<div class="msg-label">SafeStep</div><div>${escapeHtml(text)}</div>${bulletsHtml}`;
   }
 
   const list = document.getElementById('chat-messages');
@@ -195,6 +202,30 @@ function handleRepeat() {
   appendMessage(text, 'assistant', 'neutral');
 }
 
+async function autoAnalyzePage() {
+  if (!pageContent && !pageUrl) return;
+  setActionButtonsDisabled(true);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/scam-check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: pageUrl, pageTitle, content: pageContent }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const tone = deriveTone(data.classification || data.riskLevel);
+    const bullets = Array.isArray(data.suspicious_signals) && data.suspicious_signals.length
+      ? data.suspicious_signals
+      : null;
+    appendMessage(data.explanation || 'I checked this page for you.', 'assistant', tone, bullets);
+  } catch {
+    /* silent — don't clutter chat on init failure */
+  } finally {
+    setActionButtonsDisabled(false);
+  }
+}
+
 async function sendMessage() {
   if (isSending) return;
   const input = document.getElementById('chat-input');
@@ -267,6 +298,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       pageContent = result || '';
     }
   } catch { /* non-critical */ }
+
+  // Auto-analyze the current page
+  void autoAnalyzePage();
 
   // Fetch task memory silently
   fetch(`${API_BASE}/api/memory`)
