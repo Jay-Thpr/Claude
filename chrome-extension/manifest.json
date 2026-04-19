@@ -3,7 +3,7 @@
   "name": "SafeStep",
   "version": "1.0",
   "description": "Your senior-friendly browser copilot",
-  "permissions": ["tabs", "scripting", "activeTab"],
+  "permissions": ["tabs", "scripting", "activeTab", "storage"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
