@@ -1,3 +1,5 @@
+const API_BASE = 'http://localhost:3000';
+
 // ─── Danger modal ─────────────────────────────────────────────────────────────
 
 function getAlertDismissKey(url) {
@@ -412,7 +414,163 @@ function createWidget() {
 
   document.documentElement.appendChild(root);
 
-  shadow.getElementById('fab').addEventListener('click', togglePanel);
+  shadow.getElementById('fab').addEventListener('click', () => void handleFabClick());
+}
+
+// ─── Demo flow ────────────────────────────────────────────────────────────────
+
+async function handleFabClick() {
+  const stored = await chrome.storage.local.get('safestep_demo_done').catch(() => ({}));
+  if (!stored.safestep_demo_done) {
+    togglePanel();
+    showDemoGreeting();
+  } else {
+    togglePanel();
+  }
+}
+
+function showDemoGreeting() {
+  if (document.getElementById('ss-demo-card')) return;
+
+  if (!document.getElementById('ss-demo-anim')) {
+    const s = document.createElement('style');
+    s.id = 'ss-demo-anim';
+    s.textContent = `
+      @keyframes ss-demo-in { from { opacity:0; transform:translateX(24px); } to { opacity:1; transform:translateX(0); } }
+    `;
+    document.head.appendChild(s);
+  }
+
+  const card = document.createElement('div');
+  card.id = 'ss-demo-card';
+  card.style.cssText = `
+    position: fixed; top: 96px; right: 24px; z-index: 2147483646;
+    width: min(370px, calc(100vw - 32px));
+    font-family: system-ui, -apple-system, sans-serif;
+    animation: ss-demo-in 220ms ease-out;
+  `;
+
+  card.innerHTML = `
+    <div style="background:#fff;border:1px solid rgba(148,163,184,0.24);border-left:5px solid #1a6fad;
+      border-radius:22px;box-shadow:0 18px 50px rgba(15,23,42,0.18);overflow:hidden;">
+      <div style="padding:14px 16px 12px;background:linear-gradient(180deg,#f0f7ff,#fff);
+        border-bottom:1px solid rgba(148,163,184,0.15);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:12px;font-weight:700;color:#1a6fad;padding:4px 10px;
+            border-radius:999px;background:#f0f7ff;border:1px solid rgba(26,111,173,0.2);">
+            SafeStep
+          </span>
+          <button id="ss-demo-close" style="border:none;background:transparent;color:#94a3b8;
+            font-size:20px;line-height:1;cursor:pointer;padding:2px 4px;">×</button>
+        </div>
+        <h2 style="margin:0;font-size:20px;font-weight:900;color:#0f172a;line-height:1.3;">
+          Hi Jay! Happy Sunday 👋
+        </h2>
+        <p style="margin:8px 0 0;font-size:15px;line-height:1.65;color:#334155;font-weight:500;">
+          It looks like it's time for your routine CVS ordering.
+          I can add your usual health items to the cart automatically.
+        </p>
+      </div>
+      <div style="padding:12px 16px 16px;">
+        <div id="ss-demo-status" style="display:none;font-size:14px;color:#1a6fad;
+          font-weight:600;margin-bottom:10px;"></div>
+        <div style="display:flex;gap:10px;">
+          <button id="ss-demo-start" style="flex:1;min-height:44px;border:none;border-radius:14px;
+            background:#1a6fad;color:#fff;font-size:15px;font-weight:800;cursor:pointer;
+            box-shadow:0 6px 16px rgba(26,111,173,0.25);">
+            Add items to cart →
+          </button>
+          <button id="ss-demo-skip" style="min-height:44px;padding:0 14px;border:1px solid #e2e8f0;
+            border-radius:14px;background:#fff;color:#64748b;font-size:14px;font-weight:600;cursor:pointer;">
+            Maybe later
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(card);
+
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(
+      "Hi Jay! It's Sunday and it's time for your routine CVS ordering. I can add your usual health items to the cart right now."
+    );
+    utt.rate = 0.88;
+    utt.volume = 1;
+    window.speechSynthesis.speak(utt);
+  }
+
+  document.getElementById('ss-demo-close').onclick = () => card.remove();
+  document.getElementById('ss-demo-skip').onclick = () => card.remove();
+  document.getElementById('ss-demo-start').onclick = () => void runDemoCVS(card);
+}
+
+async function runDemoCVS(card) {
+  const startBtn = document.getElementById('ss-demo-start');
+  const skipBtn = document.getElementById('ss-demo-skip');
+  const statusEl = document.getElementById('ss-demo-status');
+
+  if (startBtn) startBtn.disabled = true;
+  if (skipBtn) skipBtn.disabled = true;
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.textContent = '⏳ Adding your items to the cart…';
+  }
+
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(
+      "Got it! I'm adding your multivitamin, blood pressure monitor, and bandages to your CVS cart now."
+    );
+    utt.rate = 0.88;
+    window.speechSynthesis.speak(utt);
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/demo/cvs`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok && data.success) {
+      if (statusEl) statusEl.textContent = '✅ 3 items added to your cart.';
+
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        const utt = new SpeechSynthesisUtterance(
+          "Done! Your cart is ready. Now let's check your calendar for tomorrow."
+        );
+        utt.rate = 0.88;
+        window.speechSynthesis.speak(utt);
+      }
+
+      await chrome.storage.local.set({ safestep_demo_done: true }).catch(() => {});
+
+      // Swap buttons to show calendar navigation
+      const btnRow = startBtn?.parentElement;
+      if (btnRow) {
+        btnRow.innerHTML = `
+          <button id="ss-demo-cal" style="flex:1;min-height:44px;border:none;border-radius:14px;
+            background:#1a6fad;color:#fff;font-size:15px;font-weight:800;cursor:pointer;
+            box-shadow:0 6px 16px rgba(26,111,173,0.25);">
+            View my calendar →
+          </button>
+        `;
+        document.getElementById('ss-demo-cal').onclick = () => {
+          card.remove();
+          window.location.href = 'https://calendar.google.com';
+        };
+      }
+    } else {
+      const msg = data.error || 'Browser agent is not running. Start the Python backend on port 8000.';
+      if (statusEl) statusEl.textContent = `⚠️ ${msg}`;
+      if (startBtn) startBtn.disabled = false;
+      if (skipBtn) skipBtn.disabled = false;
+    }
+  } catch {
+    if (statusEl) statusEl.textContent = '⚠️ Could not reach the server. Is the dev server running?';
+    if (startBtn) startBtn.disabled = false;
+    if (skipBtn) skipBtn.disabled = false;
+  }
 }
 
 function togglePanel() {
