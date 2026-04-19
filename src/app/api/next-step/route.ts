@@ -1,4 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { cookies } from "next/headers";
+import { loadCalendarSnapshot } from "@/lib/gcal";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -6,6 +8,18 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { url, pageTitle, question, taskMemory } = body;
+    const cookieStore = await cookies();
+    const calendarSnapshot = await loadCalendarSnapshot(cookieStore).catch((err) => {
+      console.error("Google Calendar snapshot error:", err);
+      return {
+        connected: false,
+        profile: null,
+        nextAppointment: null,
+        upcomingAppointments: [],
+        message: "Google Calendar is not connected yet.",
+        source: "none" as const,
+      };
+    });
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
@@ -18,6 +32,9 @@ Current context:
 ${taskMemory ? `- Current task: ${taskMemory.current_task || "None"}` : ""}
 ${taskMemory ? `- Last step: ${taskMemory.last_step || "None"}` : ""}
 ${question ? `- The user is asking: "${question}"` : "- The user wants to know what to do next."}
+${calendarSnapshot.connected ? `- Google Calendar: connected` : "- Google Calendar: not connected"}
+${calendarSnapshot.profile ? `- Calendar account: ${calendarSnapshot.profile.name || calendarSnapshot.profile.email || "connected account"}` : ""}
+${calendarSnapshot.nextAppointment ? `- Next appointment: ${calendarSnapshot.message}` : "- Next appointment: none found"}
 
 Respond with a JSON object (no markdown, no code fences) with these fields:
 {

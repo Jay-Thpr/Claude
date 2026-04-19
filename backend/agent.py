@@ -3,25 +3,67 @@ Browser Use Agent for SafeStep
 Runs a browser-use agent with Gemini and streams step events via a callback.
 """
 
+from __future__ import annotations
+
 import os
+from pathlib import Path
 from typing import Callable, Awaitable
-from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional during local backend boot
+    load_dotenv = None
 
-from browser_use import Agent, BrowserProfile, BrowserSession
-from browser_use.llm.google.chat import ChatGoogle
+if load_dotenv is not None:
+    backend_dir = Path(__file__).resolve().parent
+    repo_root = backend_dir.parent
+    for env_path in (
+        backend_dir / ".env",
+        repo_root / ".env.local",
+        repo_root / ".env",
+    ):
+        if env_path.exists():
+            load_dotenv(env_path, override=False)
 
-# Initialize LLM
-llm = ChatGoogle(
-    model="gemini-2.5-flash",
-    api_key=os.environ["GEMINI_API_KEY"],
-    temperature=0.0,
-    max_output_tokens=16000,  # Required for thinking models
-)
+# browser-use creates its own config/profile directories during import.
+# Point those at a writable temp location so the agent can initialize safely.
+os.environ.setdefault("BROWSER_USE_CONFIG_DIR", str(Path("/tmp") / "browseruse"))
+
+try:
+    from browser_use import Agent, BrowserProfile, BrowserSession
+    from browser_use.llm.google.chat import ChatGoogle
+    _IMPORT_ERROR: Exception | None = None
+except ImportError as exc:  # pragma: no cover - optional browser agent dependency
+    Agent = BrowserProfile = BrowserSession = ChatGoogle = None  # type: ignore[assignment]
+    _IMPORT_ERROR = exc
 
 # Submit guard keywords
-SUBMIT_KEYWORDS = {"submit", "apply now", "final submit", "send application", "confirm payment", "place order"}
+SUBMIT_KEYWORDS = {
+    "submit",
+    "apply now",
+    "final submit",
+    "send application",
+    "confirm payment",
+    "place order",
+}
+
+
+def _build_llm() -> ChatGoogle:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is not set.")
+
+    return ChatGoogle(
+        model="gemini-2.5-flash",
+        api_key=api_key,
+        temperature=0.0,
+        max_output_tokens=16000,
+    )
+
+
+def _browser_headless() -> bool:
+    value = os.environ.get("BROWSER_USE_HEADLESS", "false").strip().lower()
+    return value in {"1", "true", "yes", "on"}
 
 
 async def run_agent(task: str, emit: Callable[[dict], Awaitable[None]]) -> None:
@@ -29,7 +71,14 @@ async def run_agent(task: str, emit: Callable[[dict], Awaitable[None]]) -> None:
     Run a browser-use agent for the given task.
     Emits step events via the emit callback for SSE streaming.
     """
-    profile = BrowserProfile(headless=False)
+    if _IMPORT_ERROR is not None:
+        raise RuntimeError(
+            "browser-use is not installed in this environment, so the browser agent cannot run."
+        ) from _IMPORT_ERROR
+
+    llm = _build_llm()
+
+    profile = BrowserProfile(headless=_browser_headless())
     session = BrowserSession(browser_profile=profile)
 
     step_count = 0

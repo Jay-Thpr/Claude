@@ -1,3 +1,6 @@
+import { cookies } from "next/headers";
+import type { CalendarSnapshot } from "@/lib/gcal";
+import { loadCalendarSnapshot } from "@/lib/gcal";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 // Fallback demo appointment data when Google Calendar isn't connected
@@ -13,6 +16,52 @@ const DEMO_USER_ID = "demo-user-001";
 
 export async function GET() {
   try {
+    const cookieStore = await cookies();
+    let snapshot: CalendarSnapshot = {
+      connected: false,
+      profile: null,
+      nextAppointment: null,
+      upcomingAppointments: [],
+      message: "Google Calendar is not connected yet.",
+      source: "none" as const,
+    };
+
+    try {
+      snapshot = await loadCalendarSnapshot(cookieStore);
+    } catch (err) {
+      console.error("Google Calendar snapshot error:", err);
+    }
+
+    if (snapshot.connected) {
+      if (snapshot.nextAppointment) {
+        const appt = snapshot.nextAppointment;
+        return Response.json({
+          message: snapshot.message,
+          appointment: {
+            title: appt.summary,
+            start_time: appt.start,
+            end_time: appt.end || null,
+            description: appt.description || "",
+            location: appt.location || "",
+            source: "google-calendar",
+          },
+          upcoming_appointments: snapshot.upcomingAppointments,
+          connected: true,
+          account: snapshot.profile,
+          source: snapshot.source,
+        });
+      }
+
+      return Response.json({
+        message: snapshot.message,
+        appointment: null,
+        upcoming_appointments: snapshot.upcomingAppointments,
+        connected: true,
+        account: snapshot.profile,
+        source: snapshot.source,
+      });
+    }
+
     const supabase = createServerSupabaseClient();
 
     // Try to fetch from Supabase first
@@ -51,6 +100,8 @@ export async function GET() {
       return Response.json({
         message: `Your next appointment is ${when} at ${time}: ${data.title}. ${data.description || ""}`,
         appointment: data,
+        connected: false,
+        source: "supabase",
       });
     }
 
@@ -64,6 +115,8 @@ export async function GET() {
     return Response.json({
       message: `Your next appointment is tomorrow at ${time}: ${DEMO_APPOINTMENT.title}. ${DEMO_APPOINTMENT.description}`,
       appointment: DEMO_APPOINTMENT,
+      connected: false,
+      source: "demo",
     });
   } catch (err) {
     console.error("Appointments error:", err);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 interface CopilotPanelProps {
   currentUrl: string;
@@ -14,6 +14,22 @@ interface AssistantResponse {
   timestamp: Date;
 }
 
+interface CalendarStatus {
+  connected: boolean;
+  message: string;
+  profile?: {
+    email?: string;
+    name?: string;
+  } | null;
+  nextAppointment?: {
+    summary: string;
+    whenLabel: string;
+    timeLabel?: string;
+    location?: string;
+  } | null;
+  source?: string;
+}
+
 export default function CopilotPanel({
   currentUrl,
   currentPageTitle,
@@ -21,10 +37,58 @@ export default function CopilotPanel({
   const [responses, setResponses] = useState<AssistantResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [freeText, setFreeText] = useState("");
+  const [calendarStatus, setCalendarStatus] = useState<CalendarStatus | null>(null);
+  const [calendarLoading, setCalendarLoading] = useState(false);
 
   const addResponse = useCallback((response: AssistantResponse) => {
     setResponses((prev) => [response, ...prev]);
   }, []);
+
+  const loadCalendarStatus = useCallback(async () => {
+    setCalendarLoading(true);
+    try {
+      const res = await fetch("/api/gcal/status");
+      const data = (await res.json()) as CalendarStatus;
+      setCalendarStatus(data);
+    } catch {
+      setCalendarStatus({
+        connected: false,
+        message: "I couldn't check Google Calendar right now.",
+      });
+    } finally {
+      setCalendarLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadCalendarStatus();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadCalendarStatus]);
+
+  const handleCalendarConnect = () => {
+    window.location.href = "/api/gcal/connect";
+  };
+
+  const handleCalendarDisconnect = async () => {
+    setCalendarLoading(true);
+    try {
+      const res = await fetch("/api/gcal/disconnect", { method: "POST" });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      await loadCalendarStatus();
+    } catch {
+      setCalendarStatus({
+        connected: false,
+        message: "I couldn't disconnect Google Calendar right now.",
+      });
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
 
   const handleNextStep = async () => {
     setIsLoading(true);
@@ -199,6 +263,87 @@ export default function CopilotPanel({
             <p className="text-sm text-text-muted">
               Your browsing companion
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Calendar connection */}
+      <div className="p-4 border-b border-surface-200 bg-surface-50">
+        <div className="rounded-2xl border border-surface-200 bg-white p-4">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-text-muted">
+                Google Calendar
+              </p>
+              <h3 className="text-lg font-bold text-text-primary">
+                {calendarStatus?.connected ? "Connected" : "Not connected"}
+              </h3>
+            </div>
+            <span
+              className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                calendarStatus?.connected
+                  ? "bg-safe/10 text-safe"
+                  : "bg-warning/10 text-warning"
+              }`}
+            >
+              {calendarLoading
+                ? "Checking..."
+                : calendarStatus?.connected
+                  ? "Ready"
+                  : "Disconnected"}
+            </span>
+          </div>
+
+          <p className="text-base text-text-secondary leading-relaxed">
+            {calendarStatus?.message ||
+              "Connect Google Calendar so SafeStep can mention your next appointment while helping you browse."}
+          </p>
+
+          {calendarStatus?.connected && calendarStatus.nextAppointment ? (
+            <div className="mt-3 rounded-xl bg-surface-50 p-3 border border-surface-200">
+              <p className="text-sm font-semibold text-text-muted uppercase tracking-wide mb-1">
+                Next event
+              </p>
+              <p className="text-base font-medium text-text-primary">
+                {calendarStatus.nextAppointment.summary}
+              </p>
+              <p className="text-sm text-text-secondary">
+                {calendarStatus.nextAppointment.whenLabel}
+                {calendarStatus.nextAppointment.timeLabel
+                  ? ` at ${calendarStatus.nextAppointment.timeLabel}`
+                  : ""}
+                {calendarStatus.nextAppointment.location
+                  ? ` · ${calendarStatus.nextAppointment.location}`
+                  : ""}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="mt-4 flex gap-2">
+            {calendarStatus?.connected ? (
+              <button
+                onClick={handleCalendarDisconnect}
+                disabled={calendarLoading}
+                className="flex-1 px-4 py-3 rounded-xl border-2 border-surface-200 text-text-primary font-semibold hover:border-danger hover:text-danger transition-colors disabled:opacity-50"
+              >
+                Disconnect
+              </button>
+            ) : (
+              <button
+                onClick={handleCalendarConnect}
+                disabled={calendarLoading}
+                className="flex-1 px-4 py-3 rounded-xl bg-primary-500 text-white font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
+              >
+                Connect Google Calendar
+              </button>
+            )}
+            <button
+              onClick={loadCalendarStatus}
+              disabled={calendarLoading}
+              className="px-4 py-3 rounded-xl border-2 border-surface-200 text-text-secondary font-semibold hover:border-primary-300 hover:text-primary-600 transition-colors disabled:opacity-50"
+            >
+              Refresh
+            </button>
           </div>
         </div>
       </div>
