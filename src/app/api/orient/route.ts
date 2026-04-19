@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
 import { extractSuspiciousSignals, assessRiskLevel } from "../../../lib/safety-rules";
-import { loadCalendarSnapshot } from "../../../lib/gcal";
+import { loadCalendarSnapshot, type CalendarSnapshot } from "../../../lib/gcal";
+
+type OrientDeps = {
+  loadCalendarSnapshot?: () => Promise<CalendarSnapshot | null>;
+};
 
 export interface OrientRequest {
   url: string;
@@ -68,7 +72,7 @@ function appointmentWithinMinutes(whenLabel: string | null | undefined, timeLabe
   }
 }
 
-export async function POST(request: Request): Promise<Response> {
+export async function handleOrientRequest(request: Request, deps: OrientDeps = {}): Promise<Response> {
   let body: OrientRequest;
   try {
     body = (await request.json()) as OrientRequest;
@@ -97,10 +101,14 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // 2. Calendar snapshot
-    const cookieStore = await cookies();
     let snapshot;
     try {
-      snapshot = await loadCalendarSnapshot(cookieStore);
+      if (deps.loadCalendarSnapshot) {
+        snapshot = await deps.loadCalendarSnapshot();
+      } else {
+        const cookieStore = await cookies();
+        snapshot = await loadCalendarSnapshot(cookieStore);
+      }
     } catch {
       snapshot = null;
     }
@@ -182,4 +190,8 @@ export async function POST(request: Request): Promise<Response> {
   } catch {
     return Response.json(SAFE_DEFAULT);
   }
+}
+
+export async function POST(request: Request): Promise<Response> {
+  return handleOrientRequest(request);
 }

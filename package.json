@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:prd": "tsc -p tsconfig.prd-tests.json && node --test dist-prd-tests/tests/prd.test.js dist-prd-tests/tests/next-step.test.js dist-prd-tests/tests/orchestration.test.js",
+    "test:prd": "tsc -p tsconfig.prd-tests.json && node --test dist-prd-tests/tests/prd.test.js dist-prd-tests/tests/next-step.test.js dist-prd-tests/tests/orchestration.test.js dist-prd-tests/tests/proactive.test.js",
     "test": "npm run test:prd"
   },
   "dependencies": {

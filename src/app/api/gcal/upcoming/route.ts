@@ -1,16 +1,25 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { loadCalendarSnapshot } from "@/lib/gcal";
-import type { CalendarEventSummary } from "@/lib/gcal";
+import { loadCalendarSnapshot } from "../../../../lib/gcal";
+import type { CalendarSnapshot, CalendarEventSummary } from "../../../../lib/gcal";
 
 const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
 
-export async function GET() {
-  try {
-    const cookieStore = await cookies();
-    const snapshot = await loadCalendarSnapshot(cookieStore);
+type GCalUpcomingDeps = {
+  loadCalendarSnapshot?: () => Promise<CalendarSnapshot | null>;
+};
 
-    if (!snapshot.connected) {
+export async function handleGCalUpcomingRequest(deps: GCalUpcomingDeps = {}): Promise<Response> {
+  try {
+    let snapshot: CalendarSnapshot | null;
+    if (deps.loadCalendarSnapshot) {
+      snapshot = await deps.loadCalendarSnapshot();
+    } else {
+      const cookieStore = await cookies();
+      snapshot = await loadCalendarSnapshot(cookieStore);
+    }
+
+    if (!snapshot || !snapshot.connected) {
       return NextResponse.json({ connected: false, appointments: [] });
     }
 
@@ -39,4 +48,8 @@ export async function GET() {
       error: err instanceof Error ? err.message : "Unknown error",
     });
   }
+}
+
+export async function GET() {
+  return handleGCalUpcomingRequest();
 }

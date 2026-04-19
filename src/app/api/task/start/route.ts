@@ -114,7 +114,11 @@ Return valid JSON only — no extra text, no markdown code fences:
 }`;
 }
 
-export async function POST(request: Request): Promise<Response> {
+type TaskStartDeps = {
+  runGeminiPrompt?: (prompt: string) => Promise<string>;
+};
+
+export async function handleTaskStartRequest(request: Request, deps: TaskStartDeps = {}): Promise<Response> {
   let body: TaskStartRequest;
   try {
     body = (await request.json()) as TaskStartRequest;
@@ -126,9 +130,11 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(buildFallbackPlan(body.intent || "your task"));
   }
 
+  const gemini = deps.runGeminiPrompt ?? runGeminiPrompt;
+
   try {
     const prompt = buildPrompt(body);
-    const rawText = await runGeminiPrompt(prompt);
+    const rawText = await gemini(prompt);
 
     const parsed = safeParseJson<{
       steps?: Array<{ index?: number; instruction?: string; voiceAnnouncement?: string }>;
@@ -139,7 +145,6 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json(buildFallbackPlan(body.intent));
     }
 
-    // Normalize steps — ensure index, instruction, and voiceAnnouncement are present
     const steps: TaskStep[] = parsed.steps
       .slice(0, 7)
       .map((s, i) => ({
@@ -161,4 +166,8 @@ export async function POST(request: Request): Promise<Response> {
   } catch {
     return Response.json(buildFallbackPlan(body.intent));
   }
+}
+
+export async function POST(request: Request): Promise<Response> {
+  return handleTaskStartRequest(request);
 }
