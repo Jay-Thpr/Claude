@@ -1,5 +1,10 @@
 const DEFAULT_REDIRECT_URI = "http://localhost:3000/api/gcal/callback";
-const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+const CALENDAR_SCOPE = [
+  "https://www.googleapis.com/auth/calendar.readonly",
+  "openid",
+  "email",
+  "profile",
+].join(" ");
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const USERINFO_ENDPOINT = "https://www.googleapis.com/oauth2/v2/userinfo";
 const CALENDAR_EVENTS_ENDPOINT = "https://www.googleapis.com/calendar/v3/calendars";
@@ -366,20 +371,34 @@ export async function loadCalendarSnapshot(cookieStore: CookieStore): Promise<Ca
     };
   }
 
-  const upcomingAppointments = await fetchUpcomingCalendarEvents(accessToken);
-  const nextAppointment = upcomingAppointments[0] || null;
   const resolvedProfile = profile || (await fetchUserProfile(accessToken).catch(() => null));
+  let upcomingAppointments: CalendarEventSummary[] = [];
+  let nextAppointment: CalendarEventSummary | null = null;
+  let calendarLookupError = false;
+
+  try {
+    upcomingAppointments = await fetchUpcomingCalendarEvents(accessToken);
+    nextAppointment = upcomingAppointments[0] || null;
+  } catch {
+    calendarLookupError = true;
+  }
 
   if (resolvedProfile) {
     await setJsonCookie(cookieStore, GCAL_COOKIE_NAMES.profile, resolvedProfile);
   }
+
+  const message = calendarLookupError
+    ? resolvedProfile
+      ? `Google Calendar is connected for ${resolvedProfile.name || resolvedProfile.email || "your account"}, but I couldn't load upcoming events right now.`
+      : "Google Calendar is connected, but I couldn't load upcoming events right now."
+    : buildCalendarMessage(resolvedProfile, nextAppointment, true);
 
   return {
     connected: true,
     profile: resolvedProfile,
     nextAppointment,
     upcomingAppointments,
-    message: buildCalendarMessage(resolvedProfile, nextAppointment, true),
+    message,
     source: "google-calendar",
   };
 }

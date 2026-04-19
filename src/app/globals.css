@@ -193,8 +193,151 @@ body {
 .app-shell {
   position: relative;
   width: 100vw;
-  height: 100vh;
+  min-height: 100dvh;
+  height: auto;
   background: var(--color-canvas);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.home-stage {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(320px, 0.56fr) minmax(0, 0.44fr);
+  gap: 16px;
+}
+
+.home-browser-wrap {
+  min-height: 0;
+}
+
+.google-search-shell {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid rgba(26, 26, 26, 0.08);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(53, 176, 159, 0.14), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 249, 247, 0.98));
+  box-shadow: 0 18px 50px rgba(34, 44, 37, 0.08);
+}
+
+.google-search-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  gap: 16px;
+  align-items: end;
+}
+
+.google-search-eyebrow {
+  color: var(--color-primary-700);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.google-search-shell h2 {
+  margin-top: 6px;
+  font-size: clamp(1.8rem, 2.8vw, 2.4rem);
+  font-weight: 800;
+  line-height: 1.08;
+}
+
+.google-search-copy {
+  margin-top: 10px;
+  color: var(--color-text-secondary);
+  max-width: 44rem;
+}
+
+.google-search-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.google-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  border: 2px solid var(--color-surface-200);
+  background: white;
+  color: var(--color-text-primary);
+  font-size: 1rem;
+  outline: none;
+}
+
+.google-search-input:focus {
+  border-color: var(--color-primary-400);
+  box-shadow: 0 0 0 4px rgba(53, 176, 159, 0.12);
+}
+
+.google-search-button {
+  flex-shrink: 0;
+  padding: 0.9rem 1.2rem;
+  border: none;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  box-shadow: 0 10px 24px rgba(35, 137, 123, 0.18);
+}
+
+.google-search-button:hover {
+  background: linear-gradient(135deg, var(--color-primary-400), var(--color-primary-500));
+  transform: translateY(-1px);
+}
+
+.google-search-button:active {
+  transform: translateY(0);
+}
+
+.google-search-frame-shell {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid rgba(26, 26, 26, 0.08);
+  background: white;
+}
+
+.google-search-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.google-search-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+}
+
+.google-search-link {
+  flex-shrink: 0;
+  color: var(--color-primary-700);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.google-search-link:hover {
+  text-decoration: underline;
 }
 
 /* Floating Action Button */
@@ -228,6 +371,55 @@ body {
   transform: scale(0.97);
 }
 
+.pharmacy-fab {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  min-width: 164px;
+  height: 64px;
+  padding: 0 18px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
+  color: white;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 4px 20px rgba(67, 56, 202, 0.22);
+  z-index: 102;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.pharmacy-fab:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 8px 30px rgba(67, 56, 202, 0.28);
+  filter: brightness(1.03);
+}
+
+.pharmacy-fab:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.pharmacy-fab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.18);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.pharmacy-fab-label {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* Overlay copilot panel */
 .overlay-panel {
   position: fixed;
@@ -253,11 +445,152 @@ body {
   animation: panelSlideOut 0.2s ease-in forwards;
 }
 
+.trace-panel {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  width: min(480px, calc(100vw - 32px));
+  height: min(720px, calc(100vh - 120px));
+  background: rgba(251, 248, 244, 0.98);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  box-shadow: 0 16px 42px rgba(34, 44, 37, 0.18);
+  border: 1px solid var(--color-surface-200);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  z-index: 101;
+  transform-origin: bottom left;
+  animation: pharmacyPanelSlideIn 0.25s ease-out forwards;
+}
+
+.trace-panel-closing {
+  animation: pharmacyPanelSlideOut 0.2s ease-in forwards;
+}
+
+.trace-panel-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.trace-panel-topbar {
+  padding: 1rem 1rem 0.85rem 1rem;
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-surface-200);
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.12), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 249, 247, 0.98));
+}
+
+.trace-panel-eyebrow {
+  color: var(--color-indigo-600);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.trace-panel-topbar h3 {
+  margin-top: 4px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.trace-panel-copy {
+  margin-top: 8px;
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+  max-width: 28rem;
+}
+
+.trace-panel-close {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 9999px;
+  border: 1px solid var(--color-surface-200);
+  background: white;
+  color: var(--color-text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.trace-panel-close:hover {
+  transform: scale(1.04);
+  border-color: var(--color-indigo-500);
+  background: rgba(79, 70, 229, 0.06);
+}
+
+.trace-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 @media (max-width: 480px) {
   .overlay-panel {
     width: calc(100vw - 16px);
     right: 8px;
     bottom: 88px;
+  }
+
+  .pharmacy-fab {
+    left: 8px;
+    bottom: 88px;
+    min-width: 148px;
+    height: 56px;
+    padding: 0 14px;
+  }
+
+  .trace-panel {
+    left: 8px;
+    bottom: 156px;
+    width: calc(100vw - 16px);
+    height: calc(100vh - 176px);
+    border-radius: 20px;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .home-stage {
+    grid-template-rows: minmax(360px, 0.62fr) minmax(0, 0.38fr);
+    gap: 12px;
+  }
+
+  .google-search-shell {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .google-search-header {
+    grid-template-columns: 1fr;
+  }
+
+  .google-search-form {
+    justify-content: stretch;
+  }
+
+.google-search-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pharmacy-fab {
+    min-width: 152px;
   }
 }
 
@@ -280,6 +613,28 @@ body {
   to {
     opacity: 0;
     transform: translateY(20px) scale(0.96);
+  }
+}
+
+@keyframes pharmacyPanelSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes pharmacyPanelSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.96);
   }
 }
 

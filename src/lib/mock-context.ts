@@ -78,6 +78,28 @@ export const DEMO_USER_CONTEXT_ENTRIES: UserContextEntry[] = [
 
 export const DEMO_MEMORY: TaskMemoryState = {
   currentTask: "Reviewing the upcoming cardiology appointment",
+  taskType: "appointment-prep",
+  taskGoal: "Get ready for the cardiology appointment step by step",
+  currentStageIndex: 0,
+  currentStageTitle: "Check the doctor website",
+  currentStageDetail: "Open the hospital portal and confirm the visit details.",
+  nextStageTitle: "Pack what you need",
+  nextStageDetail: "Put the medication list, insurance card, and notes in a bag.",
+  stagePlan: [
+    {
+      title: "Check the doctor website",
+      detail: "Open the hospital portal and confirm the visit details.",
+    },
+    {
+      title: "Pack what you need",
+      detail: "Put the medication list, insurance card, and notes in a bag.",
+    },
+    {
+      title: "Leave the house",
+      detail: "Grab your keys and leave 15 minutes early.",
+    },
+  ],
+  status: "active",
   lastStep: "Opened the patient portal and checked the visit details.",
   currentUrl: "https://myhealth.ucsd.edu",
   pageTitle: "MyChart - Appointments",
@@ -91,6 +113,7 @@ export const DEMO_APPOINTMENT: AppointmentContext = {
   location: "UCSD Medical Center",
   description:
     "Bring your medication list, insurance card, and a note of any new symptoms.",
+  prepNotes: "Arrive 15 minutes early.",
   source: "demo",
 };
 

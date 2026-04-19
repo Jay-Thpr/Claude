@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:prd": "tsc -p tsconfig.prd-tests.json && node dist-prd-tests/tests/prd.test.js",
+    "test": "npm run test:prd"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

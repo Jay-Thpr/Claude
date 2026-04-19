@@ -19,8 +19,22 @@ export type CopilotResponse = {
   };
 };
 
+export type TaskStage = {
+  title: string;
+  detail?: string | null;
+};
+
 export type TaskMemoryState = {
   currentTask?: string | null;
+  taskType?: string | null;
+  taskGoal?: string | null;
+  currentStageIndex?: number | null;
+  currentStageTitle?: string | null;
+  currentStageDetail?: string | null;
+  nextStageTitle?: string | null;
+  nextStageDetail?: string | null;
+  stagePlan?: TaskStage[] | null;
+  status?: string | null;
   lastStep?: string | null;
   currentUrl?: string | null;
   pageTitle?: string | null;
@@ -33,6 +47,7 @@ export type AppointmentContext = {
   timeLabel?: string | null;
   location?: string | null;
   description?: string | null;
+  prepNotes?: string | null;
   source?: string | null;
 };
 
@@ -74,6 +89,7 @@ export type CopilotRequest = {
   appointment?: AppointmentContext | null;
   userProfile?: UserProfileContext | null;
   userContextEntries?: UserContextEntry[];
+  userId?: string;
 };
 
 export const DEFAULT_COPILOT_RESPONSE: CopilotResponse = {

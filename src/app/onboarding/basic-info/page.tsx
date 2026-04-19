@@ -1,17 +1,17 @@
 import { redirect } from "next/navigation";
-import HomeShell from "@/components/HomeShell";
+import BasicInfoForm from "@/components/BasicInfoForm";
 import { loadAppAccessState } from "@/lib/access-control";
 
-export default async function Home() {
+export default async function BasicInfoPage() {
   const access = await loadAppAccessState();
 
   if (!access.identity) {
     redirect("/login");
   }
 
-  if (!access.onboarded) {
-    redirect("/onboarding");
+  if (access.onboarded) {
+    redirect("/");
   }
 
-  return <HomeShell />;
+  return <BasicInfoForm />;
 }

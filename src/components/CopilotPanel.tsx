@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface CopilotPanelProps {
   currentUrl: string;
@@ -8,14 +9,15 @@ interface CopilotPanelProps {
   onClose: () => void;
 }
 
-interface AssistantResponse {
-  type: "next-step" | "scam-check" | "appointment" | "memory";
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
   content: string;
-  classification?: "safe" | "not-sure" | "risky";
+  tone?: "neutral" | "safe" | "warning" | "danger";
   timestamp: Date;
-}
+};
 
-interface CalendarStatus {
+type CalendarStatus = {
   connected: boolean;
   message: string;
   profile?: {
@@ -29,6 +31,42 @@ interface CalendarStatus {
     location?: string;
   } | null;
   source?: string;
+};
+
+type TaskMemoryPayload = {
+  current_task: string | null;
+  task_type?: string | null;
+  task_goal?: string | null;
+  current_stage_index?: number | null;
+  current_stage_title?: string | null;
+  current_stage_detail?: string | null;
+  next_stage_title?: string | null;
+  next_stage_detail?: string | null;
+  stage_plan?: Array<{ title: string; detail?: string | null }> | null;
+  status?: string | null;
+  last_step: string | null;
+  current_url?: string | null;
+  page_title?: string | null;
+};
+
+function buildAssistantTone(value?: string): ChatMessage["tone"] {
+  if (!value) {
+    return "neutral";
+  }
+
+  if (/safe|ready|ok/i.test(value)) {
+    return "safe";
+  }
+
+  if (/warning|careful|not sure/i.test(value)) {
+    return "warning";
+  }
+
+  if (/risky|danger|stop/i.test(value)) {
+    return "danger";
+  }
+
+  return "neutral";
 }
 
 export default function CopilotPanel({
@@ -36,15 +74,36 @@ export default function CopilotPanel({
   currentPageTitle,
   onClose,
 }: CopilotPanelProps) {
-  const [responses, setResponses] = useState<AssistantResponse[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content:
+        "Hi, I am SafeStep. Ask me anything, and I will keep the reply calm and simple.",
+      tone: "neutral",
+      timestamp: new Date(),
+    },
+  ]);
   const [isLoading, setIsLoading] = useState(false);
   const [freeText, setFreeText] = useState("");
   const [calendarStatus, setCalendarStatus] = useState<CalendarStatus | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(false);
+  const [taskMemory, setTaskMemory] = useState<TaskMemoryPayload | null>(null);
+  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 
-  const addResponse = useCallback((response: AssistantResponse) => {
-    setResponses((prev) => [response, ...prev]);
-  }, []);
+  const appendMessage = useCallback(
+    (message: Omit<ChatMessage, "id" | "timestamp">) => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          ...message,
+          id: crypto.randomUUID(),
+          timestamp: new Date(),
+        },
+      ]);
+    },
+    [],
+  );
 
   const loadCalendarStatus = useCallback(async () => {
     setCalendarLoading(true);
@@ -55,20 +114,37 @@ export default function CopilotPanel({
     } catch {
       setCalendarStatus({
         connected: false,
-        message: "I couldn't check Google Calendar right now.",
+        message: "I could not check Google Calendar right now.",
       });
     } finally {
       setCalendarLoading(false);
     }
   }, []);
 
+  const loadTaskMemory = useCallback(async () => {
+    try {
+      const res = await fetch("/api/memory");
+      const data = (await res.json()) as TaskMemoryPayload;
+      setTaskMemory(data);
+      return data;
+    } catch {
+      setTaskMemory(null);
+      return null;
+    }
+  }, []);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadCalendarStatus();
+      void loadTaskMemory();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadCalendarStatus]);
+  }, [loadCalendarStatus, loadTaskMemory]);
+
+  useEffect(() => {
+    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, isLoading]);
 
   const handleCalendarConnect = () => {
     window.location.href = "/api/gcal/connect";
@@ -85,15 +161,63 @@ export default function CopilotPanel({
     } catch {
       setCalendarStatus({
         connected: false,
-        message: "I couldn't disconnect Google Calendar right now.",
+        message: "I could not disconnect Google Calendar right now.",
       });
     } finally {
       setCalendarLoading(false);
     }
   };
 
-  const handleNextStep = async () => {
+  const sendUserMessage = async (message: string) => {
+    const trimmed = message.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    appendMessage({ role: "user", content: trimmed });
     setIsLoading(true);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: trimmed,
+          url: currentUrl,
+          pageTitle: currentPageTitle,
+        }),
+      });
+      const data = await res.json();
+      appendMessage({
+        role: "assistant",
+        content:
+          data.message ||
+          data.explanation ||
+          data.nextStep ||
+          "I am here to help.",
+        tone: buildAssistantTone(data.riskLevel),
+      });
+    } catch {
+      appendMessage({
+        role: "assistant",
+        content: "I am having trouble connecting right now. Please try again in a moment.",
+        tone: "warning",
+      });
+    } finally {
+      setIsLoading(false);
+      setFreeText("");
+    }
+  };
+
+  const sendButtonPrompt = async (prompt: string) => {
+    const trimmed = prompt.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    appendMessage({ role: "user", content: trimmed });
+    setIsLoading(true);
+
     try {
       const res = await fetch("/api/next-step", {
         method: "POST",
@@ -101,28 +225,32 @@ export default function CopilotPanel({
         body: JSON.stringify({
           url: currentUrl,
           pageTitle: currentPageTitle,
-          question: freeText || undefined,
+          question: trimmed,
+          taskMemory: taskMemory || undefined,
         }),
       });
       const data = await res.json();
-      addResponse({
-        type: "next-step",
-        content: data.explanation || data.message || "I can help you with that. Let me look at what you're doing.",
-        timestamp: new Date(),
+      appendMessage({
+        role: "assistant",
+        content: data.message || data.explanation || data.next_step || "I am ready to help.",
+        tone: buildAssistantTone(data.riskLevel),
       });
     } catch {
-      addResponse({
-        type: "next-step",
-        content: "I'm having trouble connecting right now. Please try again in a moment.",
-        timestamp: new Date(),
+      appendMessage({
+        role: "assistant",
+        content: "I am having trouble connecting right now. Please try again in a moment.",
+        tone: "warning",
       });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-    setFreeText("");
   };
 
   const handleScamCheck = async () => {
+    const prompt = freeText.trim() || "Is this safe?";
+    appendMessage({ role: "user", content: prompt });
     setIsLoading(true);
+
     try {
       const res = await fetch("/api/scam-check", {
         method: "POST",
@@ -130,145 +258,130 @@ export default function CopilotPanel({
         body: JSON.stringify({
           url: currentUrl,
           pageTitle: currentPageTitle,
-          content: freeText || undefined,
+          content: prompt,
         }),
       });
       const data = await res.json();
-      addResponse({
-        type: "scam-check",
+      appendMessage({
+        role: "assistant",
         content: data.explanation || "Let me check that for you.",
-        classification: data.classification || "not-sure",
-        timestamp: new Date(),
+        tone: buildAssistantTone(data.classification),
       });
     } catch {
-      addResponse({
-        type: "scam-check",
-        content: "I couldn't check this right now. If you're unsure about a website, it's safer to wait.",
-        classification: "not-sure",
-        timestamp: new Date(),
+      appendMessage({
+        role: "assistant",
+        content:
+          "I could not check this right now. If you are unsure about a website, it is safer to wait.",
+        tone: "warning",
       });
+    } finally {
+      setIsLoading(false);
+      setFreeText("");
     }
-    setIsLoading(false);
-    setFreeText("");
   };
 
   const handleAppointments = async () => {
+    appendMessage({ role: "user", content: "Show me my appointments." });
     setIsLoading(true);
+
     try {
       const res = await fetch("/api/appointments");
       const data = await res.json();
-      addResponse({
-        type: "appointment",
+      appendMessage({
+        role: "assistant",
         content: data.message || "No upcoming appointments found.",
-        timestamp: new Date(),
+        tone: "neutral",
       });
     } catch {
-      addResponse({
-        type: "appointment",
-        content: "I couldn't check your appointments right now. Please try again.",
-        timestamp: new Date(),
+      appendMessage({
+        role: "assistant",
+        content: "I could not check your appointments right now. Please try again.",
+        tone: "warning",
       });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleMemory = async () => {
+    appendMessage({ role: "user", content: "What was I doing?" });
     setIsLoading(true);
+
     try {
-      const res = await fetch("/api/memory");
-      const data = await res.json();
-      addResponse({
-        type: "memory",
-        content: data.current_task
-          ? `You were working on: ${data.current_task}. Your last step was: ${data.last_step || "just getting started"}.`
-          : "I don't have any saved tasks yet. Start browsing and I'll keep track for you!",
-        timestamp: new Date(),
+      const data = taskMemory || (await loadTaskMemory());
+      const memoryParts = [
+        data?.current_task ? `You were working on: ${data.current_task}.` : null,
+        data?.current_stage_title ? `Current stage: ${data.current_stage_title}.` : null,
+        data?.next_stage_title ? `Next stage: ${data.next_stage_title}.` : null,
+        `Your last step was: ${data?.last_step || "just getting started"}.`,
+      ].filter(Boolean);
+      appendMessage({
+        role: "assistant",
+        content: memoryParts.length
+          ? memoryParts.join(" ")
+          : "I do not have any saved tasks yet. Start browsing and I will keep track for you.",
+        tone: "neutral",
       });
     } catch {
-      addResponse({
-        type: "memory",
-        content: "I couldn't check your saved tasks right now.",
-        timestamp: new Date(),
+      appendMessage({
+        role: "assistant",
+        content: "I could not check your saved tasks right now.",
+        tone: "warning",
       });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
-  const getClassificationStyles = (classification?: string) => {
-    switch (classification) {
+  const getBubbleClass = (message: ChatMessage) => {
+    if (message.role === "user") {
+      return "ml-8 border border-primary-200 bg-primary-50 text-text-primary";
+    }
+
+    switch (message.tone) {
       case "safe":
-        return "response-card-safe";
-      case "risky":
-        return "response-card-danger";
-      case "not-sure":
-        return "response-card-warning";
+        return "mr-8 border border-safe/20 bg-safe-bg text-text-primary";
+      case "warning":
+        return "mr-8 border border-warning/20 bg-warning-bg text-text-primary";
+      case "danger":
+        return "mr-8 border border-danger/20 bg-danger-bg text-text-primary";
       default:
-        return "";
-    }
-  };
-
-  const getClassificationIcon = (classification?: string) => {
-    switch (classification) {
-      case "safe":
-        return "✅";
-      case "risky":
-        return "🚨";
-      case "not-sure":
-        return "⚠️";
-      default:
-        return "";
-    }
-  };
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "next-step":
-        return "👉";
-      case "scam-check":
-        return "🛡️";
-      case "appointment":
-        return "📅";
-      case "memory":
-        return "🧠";
-      default:
-        return "💬";
-    }
-  };
-
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case "next-step":
-        return "Next Step";
-      case "scam-check":
-        return "Safety Check";
-      case "appointment":
-        return "Appointment";
-      case "memory":
-        return "Your Task";
-      default:
-        return "Response";
+        return "mr-8 border border-surface-200 bg-white text-text-primary";
     }
   };
 
   return (
     <div className="flex h-full min-h-0 flex-col" id="copilot-panel">
-      {/* Panel header */}
       <div className="panel-header">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🦮</span>
-          <span className="text-lg font-bold text-text-primary">SafeStep</span>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-500 text-xl text-white">
+            💬
+          </div>
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-text-muted">
+              SafeStep Chat
+            </p>
+            <span className="text-lg font-bold text-text-primary">Ask in plain language</span>
+          </div>
         </div>
-        <button
-          onClick={onClose}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:bg-surface-200 hover:text-text-primary transition-colors text-lg"
-          aria-label="Close panel"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/onboarding/basic-info"
+            className="rounded-full border border-surface-200 bg-surface-50 px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:border-primary-300 hover:bg-primary-50"
+          >
+            Edit basics
+          </Link>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-200 hover:text-text-primary"
+            aria-label="Close panel"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {/* Calendar connection */}
         <div className="panel-section bg-surface-50">
           <div className="rounded-2xl border border-surface-200 bg-white p-4">
             <div className="mb-3 flex items-start justify-between gap-3">
@@ -349,42 +462,24 @@ export default function CopilotPanel({
           </div>
         </div>
 
-        {/* Action Buttons */}
         <div className="panel-section space-y-2">
-          <button
-            id="btn-next-step"
-            className="action-btn action-btn-primary"
-            onClick={handleNextStep}
-            disabled={isLoading}
-          >
+          <button className="action-btn action-btn-primary" onClick={() => sendButtonPrompt("What do I do next?")} disabled={isLoading}>
             <span className="text-2xl">👉</span>
             <span>What do I do next?</span>
           </button>
 
-          <button
-            id="btn-scam-check"
-            className="action-btn action-btn-amber"
-            onClick={handleScamCheck}
-            disabled={isLoading}
-          >
+          <button className="action-btn action-btn-amber" onClick={handleScamCheck} disabled={isLoading}>
             <span className="text-2xl">🛡️</span>
             <span>Is this safe?</span>
           </button>
 
-          <button
-            id="btn-appointments"
-            className="action-btn action-btn-indigo"
-            onClick={handleAppointments}
-            disabled={isLoading}
-          >
+          <button className="action-btn action-btn-indigo" onClick={handleAppointments} disabled={isLoading}>
             <span className="text-2xl">📅</span>
             <span>Appointments</span>
           </button>
 
-          {/* Secondary actions */}
           <div className="flex gap-2 pt-1">
             <button
-              id="btn-memory"
               className="action-btn action-btn-secondary !py-3 !text-base flex-1"
               onClick={handleMemory}
               disabled={isLoading}
@@ -393,109 +488,77 @@ export default function CopilotPanel({
               <span>What was I doing?</span>
             </button>
             <button
-              id="btn-repeat"
               className="action-btn action-btn-secondary !py-3 !text-base"
               onClick={() => {
-                if (responses.length > 0) {
-                  const last = responses[0];
-                  addResponse({ ...last, timestamp: new Date() });
+                const lastAssistant = [...messages].reverse().find((message) => message.role === "assistant");
+                if (lastAssistant) {
+                  appendMessage({ role: "user", content: "Say that again." });
+                  appendMessage({
+                    role: "assistant",
+                    content: lastAssistant.content,
+                    tone: lastAssistant.tone,
+                  });
                 }
               }}
-              disabled={isLoading || responses.length === 0}
+              disabled={isLoading || messages.length === 0}
             >
               <span>🔄</span>
             </button>
           </div>
         </div>
 
-        {/* Free-text input */}
-        <div className="panel-section">
-          <div className="relative">
-            <input
-              id="free-text-input"
-              type="text"
-              value={freeText}
-              onChange={(e) => setFreeText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && freeText.trim()) {
-                  handleNextStep();
-                }
-              }}
-              placeholder="Type a question or paste a link..."
-              className="w-full rounded-xl border-2 border-surface-200 bg-white px-4 py-3 pr-12 text-lg transition-colors placeholder:text-text-muted focus:border-primary-400 focus:outline-none"
-            />
-            {freeText.trim() && (
-              <button
-                onClick={handleNextStep}
-                className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-primary-500 text-white transition-colors hover:bg-primary-600"
-              >
-                →
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Responses */}
         <div className="space-y-3 px-3 pb-3" id="responses-area">
-          {isLoading && (
-            <div className="response-card flex items-center gap-3">
-              <div className="spinner" />
-              <span className="text-lg text-text-secondary">
-                Thinking...
-              </span>
-            </div>
-          )}
-
-          {responses.length === 0 && !isLoading && (
-            <div className="px-6 py-12 text-center">
-              <div className="mb-4 text-5xl">👋</div>
-              <p className="mb-2 text-xl font-medium text-text-secondary">
-                Hello! I&apos;m here to help.
-              </p>
-              <p className="text-lg text-text-muted">
-                Click a button above or type a question to get started.
-              </p>
-            </div>
-          )}
-
-          {responses.map((response) => (
+          {messages.map((message) => (
             <div
-              key={response.timestamp.getTime()}
-              className={`response-card ${getClassificationStyles(response.classification)}`}
+              key={message.id}
+              className={`response-card ${getBubbleClass(message)} max-w-[calc(100%-2rem)]`}
             >
-              <div className="mb-2 flex items-center gap-2">
-                <span className="text-lg">
-                  {response.classification
-                    ? getClassificationIcon(response.classification)
-                    : getTypeIcon(response.type)}
-                </span>
-                <span className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
-                  {getTypeLabel(response.type)}
-                </span>
-                {response.classification && (
-                  <span
-                    className={`ml-auto text-sm font-bold uppercase ${
-                      response.classification === "safe"
-                        ? "text-safe"
-                        : response.classification === "risky"
-                          ? "text-danger"
-                          : "text-warning"
-                    }`}
-                  >
-                    {response.classification === "safe"
-                      ? "Looks Safe"
-                      : response.classification === "risky"
-                        ? "Looks Risky"
-                        : "Not Sure"}
-                  </span>
-                )}
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-text-muted">
+                <span>{message.role === "user" ? "You" : "SafeStep"}</span>
+                <span>•</span>
+                <span>{message.timestamp.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
               </div>
-              <p className="text-lg leading-relaxed text-text-primary">
-                {response.content}
+              <p className="text-lg leading-relaxed text-text-primary whitespace-pre-wrap">
+                {message.content}
               </p>
             </div>
           ))}
+
+          {isLoading ? (
+            <div className="response-card flex items-center gap-3">
+              <div className="spinner" />
+              <span className="text-lg text-text-secondary">Thinking...</span>
+            </div>
+          ) : null}
+
+          <div ref={transcriptEndRef} />
         </div>
+      </div>
+
+      <div className="panel-section">
+        <form
+          className="relative"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void sendUserMessage(freeText || "");
+          }}
+        >
+          <input
+            id="free-text-input"
+            type="text"
+            value={freeText}
+            onChange={(event) => setFreeText(event.target.value)}
+            placeholder="Ask a question, like 'remind me about my appointment'"
+            className="w-full rounded-xl border-2 border-surface-200 bg-white px-4 py-3 pr-12 text-lg transition-colors placeholder:text-text-muted focus:border-primary-400 focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !freeText.trim()}
+            className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-primary-500 text-white transition-colors hover:bg-primary-600 disabled:opacity-50"
+          >
+            →
+          </button>
+        </form>
       </div>
     </div>
   );
