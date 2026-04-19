@@ -1,6 +1,6 @@
 # Browser-Use Implementation Guide (One-Shot Reference)
 
-Everything an agent needs to implement a browser-use agent with FastAPI SSE streaming and a Next.js frontend. Based on a working implementation using browser-use 0.12.6 + Gemini 2.5 Flash.
+Everything an agent needs to implement a browser-use agent with FastAPI SSE streaming and a Next.js frontend. Based on a working implementation using browser-use 0.12.6 + Gemini 3.1 Flash Lite.
 
 ---
 
@@ -9,7 +9,7 @@ Everything an agent needs to implement a browser-use agent with FastAPI SSE stre
 | Layer | Tech |
 |-------|------|
 | Agent library | `browser-use` 0.12.6 (open-source pip package) |
-| LLM | Gemini 2.5 Flash via `google-genai` SDK |
+| LLM | Gemini 3.1 Flash Lite via `google-genai` SDK |
 | Backend | FastAPI + uvicorn |
 | Frontend | Next.js 14 (App Router) |
 | Streaming | Server-Sent Events (SSE) |
@@ -62,7 +62,7 @@ browser-use 0.12.6 has a **native** Gemini wrapper. Use it directly.
 from browser_use.llm.google.chat import ChatGoogle
 
 llm = ChatGoogle(
-    model="gemini-2.5-flash",
+    model="gemini-3.1-flash-lite",
     api_key=os.environ["GEMINI_API_KEY"],
     temperature=0.0,
     max_output_tokens=16000,  # IMPORTANT: default 8096 is too small for thinking models
@@ -76,14 +76,14 @@ llm = ChatGoogle(
 - The LangChain wrapper also requires hacky compatibility shims for `.provider`, `.model_name`, and `__setattr__` (all avoidable with the native wrapper)
 
 **Why `max_output_tokens=16000`?**
-- Gemini 2.5 Flash uses thinking tokens (~7000-8000 tokens per step)
+- Gemini 3.1 Flash Lite uses thinking tokens (~7000-8000 tokens per step)
 - Thinking tokens count against `max_output_tokens`
 - Default 8096 gets consumed by thinking, leaving no room for the JSON response → truncated JSON → parse error
 
 **Supported model strings:**
+- `"gemini-3.1-flash-lite"` ✅
 - `"gemini-2.5-flash"` ✅
 - `"gemini-2.5-pro"` ✅
-- `"gemini-2.0-flash"` ✅
 
 ---
 

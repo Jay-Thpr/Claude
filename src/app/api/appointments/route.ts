@@ -3,8 +3,10 @@ import type { CalendarSnapshot } from "@/lib/gcal";
 import { loadCalendarSnapshot } from "@/lib/gcal";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { DEMO_APPOINTMENT, DEMO_USER_ID } from "@/lib/mock-context";
+import { buildAppointmentContextFromRow } from "@/lib/appointment-utils";
 import { loadUserContextFromCookies } from "@/lib/user-context";
 import { generateAppointmentAdvice } from "@/lib/appointment-advice";
+import { buildAppointmentReminder } from "@/lib/appointment-reminders";
 import { createAppointment } from "@/lib/google-calendar";
 import { logger } from "@/lib/logger";
 
@@ -26,32 +28,42 @@ export async function GET() {
   }
 
   const userContext = await loadUserContextFromCookies(cookieStore);
+  const userId = userContext.profile.userId || DEMO_USER_ID;
 
   if (snapshot.connected) {
     if (snapshot.nextAppointment) {
       const appt = snapshot.nextAppointment;
+      const appointment = {
+        connected: true,
+        summary: appt.summary,
+        whenLabel: appt.whenLabel,
+        timeLabel: appt.timeLabel,
+        location: appt.location || null,
+        description: appt.description || null,
+        prepNotes: null,
+        source: snapshot.source,
+      };
+      const reminder = buildAppointmentReminder({
+        appointment,
+        profile: userContext.profile,
+        entries: userContext.entries,
+      });
       const advice = await generateAppointmentAdvice({
-        appointment: {
-          connected: true,
-          summary: appt.summary,
-          whenLabel: appt.whenLabel,
-          timeLabel: appt.timeLabel,
-          location: appt.location || null,
-          description: appt.description || null,
-          source: snapshot.source,
-        },
+        appointment,
         profile: userContext.profile,
         entries: userContext.entries,
       });
 
       return Response.json({
-        message: snapshot.message,
+        message: reminder.message,
+        reminder,
         appointment: {
           summary: appt.summary,
           whenLabel: appt.whenLabel,
           timeLabel: appt.timeLabel,
           location: appt.location || null,
           description: appt.description || null,
+          prepNotes: null,
           source: "google-calendar",
         },
         prep_advice: advice,
@@ -74,6 +86,11 @@ export async function GET() {
 
   const supabase = createServerSupabaseClient();
   if (!supabase) {
+    const reminder = buildAppointmentReminder({
+      appointment: DEMO_APPOINTMENT,
+      profile: userContext.profile,
+      entries: userContext.entries,
+    });
     const advice = await generateAppointmentAdvice({
       appointment: DEMO_APPOINTMENT,
       profile: userContext.profile,
@@ -81,7 +98,8 @@ export async function GET() {
     });
 
     return Response.json({
-      message: `Your next appointment is ${DEMO_APPOINTMENT.whenLabel || "tomorrow"} at ${DEMO_APPOINTMENT.timeLabel || "10:30 AM"}: ${DEMO_APPOINTMENT.summary}. ${DEMO_APPOINTMENT.description || ""}`,
+      message: reminder.message,
+      reminder,
       appointment: DEMO_APPOINTMENT,
       prep_advice: advice,
       connected: false,
@@ -93,59 +111,30 @@ export async function GET() {
   const { data, error } = await supabase
     .from("appointments")
     .select("*")
-    .eq("user_id", DEMO_USER_ID)
+    .eq("user_id", userId)
     .gte("start_time", new Date().toISOString())
     .order("start_time", { ascending: true })
     .limit(1)
     .single();
 
   if (data && !error) {
-    const apptDate = new Date(data.start_time);
-    const isToday =
-      apptDate.toDateString() === new Date().toDateString();
-    const isTomorrow =
-      apptDate.toDateString() ===
-      new Date(Date.now() + 86400000).toDateString();
-
-    const when = isToday
-      ? "today"
-      : isTomorrow
-        ? "tomorrow"
-        : apptDate.toLocaleDateString("en-US", {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-          });
-
-    const time = apptDate.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    const appointment = buildAppointmentContextFromRow(data, { source: "supabase" });
 
     const advice = await generateAppointmentAdvice({
-      appointment: {
-        connected: false,
-        summary: data.title,
-        whenLabel: when,
-        timeLabel: time,
-        location: data.location || null,
-        description: data.description || null,
-        source: "supabase",
-      },
+      appointment,
+      profile: userContext.profile,
+      entries: userContext.entries,
+    });
+    const reminder = buildAppointmentReminder({
+      appointment,
       profile: userContext.profile,
       entries: userContext.entries,
     });
 
     return Response.json({
-      message: `Your next appointment is ${when} at ${time}: ${data.title}. ${data.description || ""}`,
-      appointment: {
-        summary: data.title,
-        whenLabel: when,
-        timeLabel: time,
-        location: data.location || null,
-        description: data.description || null,
-        source: "supabase",
-      },
+      message: reminder.message,
+      reminder,
+      appointment,
       prep_advice: advice,
       connected: false,
       source: "supabase",
@@ -158,9 +147,15 @@ export async function GET() {
     profile: userContext.profile,
     entries: userContext.entries,
   });
+  const reminder = buildAppointmentReminder({
+    appointment: DEMO_APPOINTMENT,
+    profile: userContext.profile,
+    entries: userContext.entries,
+  });
 
   return Response.json({
-    message: `Your next appointment is ${DEMO_APPOINTMENT.whenLabel || "tomorrow"} at ${DEMO_APPOINTMENT.timeLabel || "10:30 AM"}: ${DEMO_APPOINTMENT.summary}. ${DEMO_APPOINTMENT.description || ""}`,
+    message: reminder.message,
+    reminder,
     appointment: DEMO_APPOINTMENT,
     prep_advice: advice,
     connected: false,

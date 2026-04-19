@@ -12,7 +12,7 @@ export type AppointmentAdvice = {
   questionsToAsk: string[];
 };
 
-const DEFAULT_MODEL = process.env.SAFESTEP_GEMINI_MODEL || "gemini-2.5-flash-lite";
+const DEFAULT_MODEL = process.env.SAFESTEP_GEMINI_MODEL || "gemini-3.1-flash-lite";
 
 function buildGenAI() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -41,6 +41,10 @@ function buildFallbackAdvice(
     "Bring your medication list and insurance card.",
     "Write down any new symptoms before the visit.",
   ];
+
+  if (appointment.prepNotes) {
+    prep.unshift(`Bring the appointment note: ${appointment.prepNotes}`);
+  }
 
   if (profile?.supportNeeds?.length) {
     prep.unshift("Take the visit one step at a time and ask for clarification if anything is unclear.");
@@ -111,6 +115,7 @@ Appointment:
 - Time: ${params.appointment.timeLabel || "Unknown"}
 - Location: ${params.appointment.location || "Unknown"}
 - Description: ${params.appointment.description || "None"}
+- Prep notes: ${params.appointment.prepNotes || "None"}
 
 User profile:
 - Name: ${params.profile?.name || "Unknown"}

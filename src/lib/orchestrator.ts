@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { cookies } from "next/headers";
+import { buildAppointmentContextFromRow } from "@/lib/appointment-utils";
 import { loadCalendarSnapshot } from "@/lib/gcal";
 import { createServerSupabaseClient, hasSupabaseConfig } from "@/lib/supabase-server";
 import { DEMO_APPOINTMENT, DEMO_MEMORY, DEMO_USER_ID } from "@/lib/mock-context";
@@ -34,16 +35,25 @@ type CopilotContext = {
 };
 
 const FALLBACK_MODELS = [
-  process.env.SAFESTEP_GEMINI_MODEL || "gemini-2.5-flash-lite",
+  process.env.SAFESTEP_GEMINI_MODEL || "gemini-3.1-flash-lite",
   "gemini-2.5-flash",
 ];
 
 function buildDefaultTaskMemory(): TaskMemoryState {
   return {
-    currentTask: DEMO_MEMORY.currentTask,
-    lastStep: DEMO_MEMORY.lastStep,
-    currentUrl: DEMO_MEMORY.currentUrl,
-    pageTitle: DEMO_MEMORY.pageTitle,
+      currentTask: DEMO_MEMORY.currentTask,
+      taskType: DEMO_MEMORY.taskType,
+      taskGoal: DEMO_MEMORY.taskGoal,
+      currentStageIndex: DEMO_MEMORY.currentStageIndex,
+      currentStageTitle: DEMO_MEMORY.currentStageTitle,
+      currentStageDetail: DEMO_MEMORY.currentStageDetail,
+      nextStageTitle: DEMO_MEMORY.nextStageTitle,
+      nextStageDetail: DEMO_MEMORY.nextStageDetail,
+      stagePlan: DEMO_MEMORY.stagePlan,
+      status: DEMO_MEMORY.status,
+      lastStep: DEMO_MEMORY.lastStep,
+      currentUrl: DEMO_MEMORY.currentUrl,
+      pageTitle: DEMO_MEMORY.pageTitle,
   };
 }
 
@@ -54,7 +64,7 @@ function buildDefaultAppointment(): AppointmentContext {
   };
 }
 
-async function loadStoredTaskMemory(): Promise<TaskMemoryState> {
+async function loadStoredTaskMemory(userId: string): Promise<TaskMemoryState> {
   const supabase = hasSupabaseConfig() ? createServerSupabaseClient() : null;
   if (!supabase) {
     return buildDefaultTaskMemory();
@@ -64,7 +74,7 @@ async function loadStoredTaskMemory(): Promise<TaskMemoryState> {
     const { data, error } = await supabase
       .from("task_memory")
       .select("*")
-      .eq("user_id", DEMO_USER_ID)
+      .eq("user_id", userId)
       .order("updated_at", { ascending: false })
       .limit(1)
       .single();
@@ -75,6 +85,18 @@ async function loadStoredTaskMemory(): Promise<TaskMemoryState> {
 
     return {
       currentTask: data.current_task || DEMO_MEMORY.currentTask,
+      taskType: data.task_type || DEMO_MEMORY.taskType,
+      taskGoal: data.task_goal || DEMO_MEMORY.taskGoal,
+      currentStageIndex:
+        typeof data.current_stage_index === "number"
+          ? data.current_stage_index
+          : DEMO_MEMORY.currentStageIndex,
+      currentStageTitle: data.current_stage_title || DEMO_MEMORY.currentStageTitle,
+      currentStageDetail: data.current_stage_detail || DEMO_MEMORY.currentStageDetail,
+      nextStageTitle: data.next_stage_title || DEMO_MEMORY.nextStageTitle,
+      nextStageDetail: data.next_stage_detail || DEMO_MEMORY.nextStageDetail,
+      stagePlan: Array.isArray(data.stage_plan) ? data.stage_plan : DEMO_MEMORY.stagePlan,
+      status: data.status || DEMO_MEMORY.status,
       lastStep: data.last_step || DEMO_MEMORY.lastStep,
       currentUrl: data.current_url || DEMO_MEMORY.currentUrl,
       pageTitle: data.page_title || DEMO_MEMORY.pageTitle,
@@ -86,6 +108,7 @@ async function loadStoredTaskMemory(): Promise<TaskMemoryState> {
 
 async function loadStoredAppointment(
   cookieStore: Awaited<ReturnType<typeof cookies>>,
+  userId: string,
 ): Promise<AppointmentContext> {
   const fallback = buildDefaultAppointment();
 
@@ -104,6 +127,26 @@ async function loadStoredAppointment(
     }
   } catch {
     // Fallback below.
+  }
+
+  const supabase = hasSupabaseConfig() ? createServerSupabaseClient() : null;
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("*")
+        .eq("user_id", userId)
+        .gte("start_time", new Date().toISOString())
+        .order("start_time", { ascending: true })
+        .limit(1)
+        .single();
+
+    if (!error && data) {
+      return buildAppointmentContextFromRow(data, { source: "supabase" });
+    }
+    } catch {
+      // Fallback below.
+    }
   }
 
   return fallback;
@@ -170,8 +213,6 @@ function buildContext(
 
 export async function orchestrateCopilot(input: CopilotRequest): Promise<CopilotResponse> {
   const cookieStore = await cookies();
-  const taskMemory = input.taskMemory || (await loadStoredTaskMemory());
-  const appointment = input.appointment || (await loadStoredAppointment(cookieStore));
   const loadedUserContext = input.userProfile
     ? {
         profile: input.userProfile,
@@ -179,6 +220,9 @@ export async function orchestrateCopilot(input: CopilotRequest): Promise<Copilot
         source: "request" as const,
       }
     : await loadUserContextFromCookies(cookieStore);
+  const userId = input.userId || loadedUserContext.profile.userId || DEMO_USER_ID;
+  const taskMemory = input.taskMemory || (await loadStoredTaskMemory(userId));
+  const appointment = input.appointment || (await loadStoredAppointment(cookieStore, userId));
   const context = buildContext(
     input,
     taskMemory,

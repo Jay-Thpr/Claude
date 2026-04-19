@@ -20,13 +20,39 @@ export async function GET() {
 
   await updateTaskMemory(DEMO_USER_ID, {
     current_task: "Supabase write test",
+    task_type: "appointment-prep",
+    task_goal: "Check that staged task memory is stored",
+    current_stage_index: 1,
+    current_stage_title: "Pack what you need",
+    current_stage_detail: "Put the medication list and insurance card in a bag.",
+    next_stage_title: "Leave the house",
+    next_stage_detail: "Grab your keys and head out early.",
+    stage_plan: [
+      {
+        title: "Check the doctor website",
+        detail: "Open the portal and confirm the visit details.",
+      },
+      {
+        title: "Pack what you need",
+        detail: "Put the medication list and insurance card in a bag.",
+      },
+      {
+        title: "Leave the house",
+        detail: "Grab your keys and head out early.",
+      },
+    ],
+    status: "active",
     last_step: "Wrote test scam check and task memory",
     current_url: "http://localhost:3000/api/test/supabase-write",
     page_title: "Test Page",
   });
 
   const memory = await getTaskMemory(DEMO_USER_ID);
-  results.task_memory_write = memory?.current_task === "Supabase write test" ? "ok" : "error — nothing written";
+  results.task_memory_write =
+    memory?.current_task === "Supabase write test" &&
+    memory?.current_stage_title === "Pack what you need"
+      ? "ok"
+      : "error — nothing written";
   results.task_memory_record = memory ?? null;
 
   const allOk = results.scam_check_write === "ok" && results.task_memory_write === "ok";

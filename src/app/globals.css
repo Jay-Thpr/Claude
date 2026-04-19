@@ -193,8 +193,134 @@ body {
 .app-shell {
   position: relative;
   width: 100vw;
-  height: 100vh;
+  min-height: 100dvh;
+  height: auto;
   background: var(--color-canvas);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.home-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.google-search-shell {
+  min-height: 0;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 249, 247, 0.98));
+  box-shadow: none;
+}
+
+.google-search-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 560px);
+  gap: 12px;
+  align-items: center;
+}
+
+.google-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.google-brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+  color: white;
+  font-size: 1.3rem;
+  font-weight: 800;
+  box-shadow: 0 12px 24px rgba(35, 137, 123, 0.18);
+  flex-shrink: 0;
+}
+
+.google-brand-wordmark {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.google-search-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.google-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  border: 2px solid var(--color-surface-200);
+  background: white;
+  color: var(--color-text-primary);
+  font-size: 1rem;
+  outline: none;
+}
+
+.google-search-input:focus {
+  border-color: var(--color-primary-400);
+  box-shadow: 0 0 0 4px rgba(53, 176, 159, 0.12);
+}
+
+.google-search-button {
+  flex-shrink: 0;
+  padding: 0.9rem 1.2rem;
+  border: none;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  box-shadow: 0 10px 24px rgba(35, 137, 123, 0.18);
+}
+
+.google-search-button:hover {
+  background: linear-gradient(135deg, var(--color-primary-400), var(--color-primary-500));
+  transform: translateY(-1px);
+}
+
+.google-search-button:active {
+  transform: translateY(0);
+}
+
+.google-search-frame-shell {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(26, 26, 26, 0.08);
+  background: white;
+}
+
+.google-search-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 /* Floating Action Button */
@@ -228,6 +354,55 @@ body {
   transform: scale(0.97);
 }
 
+.pharmacy-fab {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  min-width: 164px;
+  height: 64px;
+  padding: 0 18px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
+  color: white;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 4px 20px rgba(67, 56, 202, 0.22);
+  z-index: 102;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.pharmacy-fab:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 8px 30px rgba(67, 56, 202, 0.28);
+  filter: brightness(1.03);
+}
+
+.pharmacy-fab:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.pharmacy-fab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.18);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.pharmacy-fab-label {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* Overlay copilot panel */
 .overlay-panel {
   position: fixed;
@@ -253,203 +428,95 @@ body {
   animation: panelSlideOut 0.2s ease-in forwards;
 }
 
-.call-dock {
+.trace-panel {
   position: fixed;
-  left: 24px;
   bottom: 24px;
-  width: min(420px, calc(100vw - 32px));
-  max-height: calc(100vh - 48px);
+  left: 24px;
+  width: min(480px, calc(100vw - 32px));
+  height: min(720px, calc(100vh - 120px));
+  background: rgba(251, 248, 244, 0.98);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  box-shadow: 0 16px 42px rgba(34, 44, 37, 0.18);
+  border: 1px solid var(--color-surface-200);
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.97);
-  border: 1px solid var(--color-surface-200);
-  border-radius: 24px;
-  box-shadow: 0 20px 60px rgba(34, 44, 37, 0.12);
+  min-height: 0;
   overflow: hidden;
-  z-index: 100;
+  z-index: 101;
+  transform-origin: bottom left;
+  animation: pharmacyPanelSlideIn 0.25s ease-out forwards;
 }
 
-.call-dock-header {
+.trace-panel-closing {
+  animation: pharmacyPanelSlideOut 0.2s ease-in forwards;
+}
+
+.trace-panel-shell {
   display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.trace-panel-topbar {
+  padding: 1rem 1rem 0.85rem 1rem;
+  display: flex;
+  gap: 0.75rem;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  padding: 20px 20px 16px;
   border-bottom: 1px solid var(--color-surface-200);
-  background: linear-gradient(180deg, rgba(232, 245, 243, 0.9), rgba(255, 255, 255, 0.95));
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.12), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 249, 247, 0.98));
 }
 
-.call-dock-eyebrow {
-  margin-bottom: 4px;
+.trace-panel-eyebrow {
+  color: var(--color-indigo-600);
   font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--color-primary-700);
 }
 
-.call-dock-header h2 {
-  font-size: 1.25rem;
-  font-weight: 700;
+.trace-panel-topbar h3 {
+  margin-top: 4px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1.1;
 }
 
-.call-dock-link {
-  color: var(--color-primary-700);
-  font-size: 0.9rem;
-  font-weight: 700;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-}
-
-.call-dock-body {
-  overflow-y: auto;
-  padding: 18px 20px 20px;
-  display: grid;
-  gap: 14px;
-}
-
-.call-dock-field {
-  display: grid;
-  gap: 6px;
-}
-
-.call-dock-field span,
-.call-dock-card-label {
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-
-.call-dock-field input,
-.call-dock-field textarea {
-  width: 100%;
-  border: 1px solid var(--color-surface-300);
-  border-radius: 14px;
-  background: var(--color-surface-50);
-  padding: 12px 14px;
-  font-size: 0.98rem;
-  color: var(--color-text-primary);
-}
-
-.call-dock-field textarea {
-  resize: vertical;
-  min-height: 96px;
-}
-
-.call-dock-checkbox {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+.trace-panel-copy {
+  margin-top: 8px;
+  color: var(--color-text-secondary);
   font-size: 0.95rem;
-  color: var(--color-text-secondary);
+  max-width: 28rem;
 }
 
-.call-dock-checkbox input {
-  margin-top: 5px;
-}
-
-.call-dock-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.call-dock-primary,
-.call-dock-secondary {
-  flex: 1;
-  border-radius: 14px;
-  padding: 12px 14px;
-  font-size: 0.98rem;
-  font-weight: 700;
-  border: 1px solid transparent;
-  cursor: pointer;
-}
-
-.call-dock-primary {
-  background: var(--color-primary-600);
-  color: white;
-}
-
-.call-dock-secondary {
-  background: white;
-  border-color: var(--color-surface-300);
-  color: var(--color-text-primary);
-}
-
-.call-dock-primary:disabled,
-.call-dock-secondary:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.call-dock-note,
-.call-dock-error {
-  padding: 12px 14px;
-  border-radius: 14px;
-  font-size: 0.92rem;
-}
-
-.call-dock-note {
-  background: var(--color-warning-bg);
-  color: #7b5600;
-}
-
-.call-dock-error {
-  background: var(--color-danger-bg);
-  color: var(--color-danger);
-}
-
-.call-dock-status,
-.call-dock-card {
+.trace-panel-close {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 9999px;
   border: 1px solid var(--color-surface-200);
-  border-radius: 16px;
-  background: var(--color-surface-50);
-  padding: 14px;
-}
-
-.call-dock-status {
-  display: grid;
-  gap: 10px;
-}
-
-.call-dock-status-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  background: white;
   color: var(--color-text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
-.call-dock-status-row strong {
-  text-align: right;
-  color: var(--color-text-primary);
-  overflow-wrap: anywhere;
+.trace-panel-close:hover {
+  transform: scale(1.04);
+  border-color: var(--color-indigo-500);
+  background: rgba(79, 70, 229, 0.06);
 }
 
-@media (max-width: 980px) {
-  .call-dock {
-    top: 12px;
-    left: 12px;
-    right: 12px;
-    bottom: auto;
-    width: auto;
-    max-height: min(70vh, 780px);
-  }
-
-  .overlay-panel {
-    width: calc(100vw - 24px);
-    right: 12px;
-    left: 12px;
-    bottom: 12px;
-    height: min(44vh, 480px);
-  }
-
-  .fab {
-    right: 16px;
-    bottom: 16px;
-  }
+.trace-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 480px) {
@@ -457,6 +524,37 @@ body {
     width: calc(100vw - 16px);
     right: 8px;
     bottom: 88px;
+  }
+
+  .pharmacy-fab {
+    left: 8px;
+    bottom: 88px;
+    min-width: 148px;
+    height: 56px;
+    padding: 0 14px;
+  }
+
+  .trace-panel {
+    left: 8px;
+    bottom: 156px;
+    width: calc(100vw - 16px);
+    height: calc(100vh - 176px);
+    border-radius: 20px;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    padding: 0;
+    gap: 0;
+  }
+
+  .google-search-shell {
+    padding: 10px;
+  }
+
+  .google-search-header {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -479,6 +577,28 @@ body {
   to {
     opacity: 0;
     transform: translateY(20px) scale(0.96);
+  }
+}
+
+@keyframes pharmacyPanelSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes pharmacyPanelSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.96);
   }
 }
 
@@ -584,6 +704,15 @@ body {
 
 .action-btn-indigo:hover {
   background: linear-gradient(135deg, #6366f1, #4f46e5);
+}
+
+.action-btn-pharmacy {
+  background: linear-gradient(135deg, #4338ca, #312e81);
+  color: white;
+}
+
+.action-btn-pharmacy:hover {
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
 }
 
 /* Response cards */

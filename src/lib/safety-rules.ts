@@ -1,4 +1,4 @@
-import type { AppointmentContext, CopilotResponse, TaskMemoryState } from "@/lib/response-schema";
+import type { AppointmentContext, CopilotResponse, TaskMemoryState } from "./response-schema";
 
 const RISKY_PATTERNS = [
   /act now/i,
@@ -67,7 +67,10 @@ export function buildMemorySummary(
 ) {
   const parts = [
     taskMemory?.currentTask ? `Current task: ${taskMemory.currentTask}` : null,
+    taskMemory?.taskGoal ? `Task goal: ${taskMemory.taskGoal}` : null,
     taskMemory?.lastStep ? `Last step: ${taskMemory.lastStep}` : null,
+    taskMemory?.currentStageTitle ? `Current stage: ${taskMemory.currentStageTitle}` : null,
+    taskMemory?.nextStageTitle ? `Next stage: ${taskMemory.nextStageTitle}` : null,
     appointment?.summary ? `Next appointment: ${appointment.summary}` : null,
   ].filter(Boolean);
 

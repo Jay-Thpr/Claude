@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { loadCalendarSnapshot, type GCalProfile } from "@/lib/gcal";
+import {
+  loadGoogleIdentityFromCookies,
+  type GoogleIdentity,
+} from "@/lib/google-account";
 import { createServerSupabaseClient, hasSupabaseConfig } from "@/lib/supabase-server";
 import {
   DEMO_USER_CONTEXT_ENTRIES,
@@ -18,13 +21,6 @@ export type LoadedUserContext = {
   source: "supabase" | "calendar" | "demo";
 };
 
-export type GoogleIdentity = {
-  userId: string;
-  email?: string;
-  name?: string;
-  connected: boolean;
-};
-
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -36,29 +32,6 @@ function toStringArray(value: unknown): string[] {
 function fallbackStringArray(value: unknown, fallback: string[]) {
   const items = toStringArray(value);
   return items.length > 0 ? items : fallback;
-}
-
-function normalizeGoogleIdentity(profile: GCalProfile | null | undefined): GoogleIdentity | null {
-  const email = profile?.email?.trim() || "";
-  if (!email) {
-    return null;
-  }
-
-  return {
-    userId: email.toLowerCase(),
-    email,
-    name: profile?.name || undefined,
-    connected: true,
-  };
-}
-
-export async function loadGoogleIdentityFromCookies(cookieStore: Awaited<ReturnType<typeof cookies>>): Promise<GoogleIdentity | null> {
-  try {
-    const snapshot = await loadCalendarSnapshot(cookieStore);
-    return normalizeGoogleIdentity(snapshot.profile);
-  } catch {
-    return null;
-  }
 }
 
 function buildFallbackProfile(identity: GoogleIdentity | null): UserProfileContext {

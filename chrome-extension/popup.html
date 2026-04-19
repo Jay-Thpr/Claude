@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <title>SafeStep</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h1 class="logo">SafeStep</h1>
+  </header>
+
+  <nav class="tab-bar">
+    <button id="tab-appointments" class="tab active">Appointments</button>
+    <button id="tab-chat" class="tab">Chat</button>
+  </nav>
+
+  <div id="panel-appointments" class="panel">
+    <!-- Loading state -->
+    <div id="state-loading" class="state" role="status">
+      <p class="loading-text">Getting your appointments…</p>
+    </div>
+
+    <!-- Appointment card state -->
+    <div id="state-loaded" class="state hidden">
+      <p class="section-label">Your next appointment</p>
+      <div class="card">
+        <p id="appt-summary" class="appt-title"></p>
+        <p id="appt-when" class="appt-when"></p>
+        <p id="appt-location" class="appt-location hidden"></p>
+      </div>
+      <div id="prep-block" class="prep hidden">
+        <p class="section-label">To prepare</p>
+        <p id="appt-prep" class="prep-text"></p>
+      </div>
+    </div>
+
+    <!-- Error state -->
+    <div id="state-error" class="state hidden">
+      <p class="error-text">Could not load appointments.</p>
+      <p class="error-sub">Make sure the app is running at localhost:3000.</p>
+    </div>
+  </div>
+
+  <div id="panel-chat" class="panel hidden">
+    <div id="chat-messages" class="chat-messages"></div>
+    <div class="chat-input-row">
+      <textarea id="chat-input" class="chat-input" placeholder="Ask me anything…" rows="1"></textarea>
+      <button id="chat-send" class="chat-send-btn">Send</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

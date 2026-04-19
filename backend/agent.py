@@ -6,8 +6,11 @@ Runs a browser-use agent with Gemini and streams step events via a callback.
 from __future__ import annotations
 
 import os
+import logging
 from pathlib import Path
 from typing import Callable, Awaitable
+
+from pydantic import BaseModel
 
 try:
     from dotenv import load_dotenv
@@ -47,14 +50,20 @@ SUBMIT_KEYWORDS = {
     "place order",
 }
 
+BROWSER_MODEL = "gemini-3.1-flash-lite"
+logger = logging.getLogger(__name__)
+
 
 def _build_llm() -> ChatGoogle:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not set.")
 
+    model_name = os.environ.get("SAFESTEP_BROWSER_MODEL", BROWSER_MODEL)
+    logger.info("browser-use model=%s", model_name)
+
     return ChatGoogle(
-        model=os.environ.get("SAFESTEP_BROWSER_MODEL", "gemini-2.5-flash-lite"),
+        model=model_name,
         api_key=api_key,
         temperature=0.0,
         max_output_tokens=16000,
@@ -69,7 +78,7 @@ def _browser_headless() -> bool:
 async def extract_from_page(task: str) -> str:
     """
     Run a browser-use agent for extraction tasks.
-    Returns the agent's final text result.
+    Returns the extracted text result from the current page.
     """
     if _IMPORT_ERROR is not None:
         raise RuntimeError(
@@ -81,16 +90,24 @@ async def extract_from_page(task: str) -> str:
     profile = BrowserProfile(headless=_browser_headless())
     session = BrowserSession(browser_profile=profile)
 
+    class ExtractionResponse(BaseModel):
+        phone_number: str = ""
+        description: str = ""
+
     try:
-        agent = Agent(
-            task=task,
-            llm=llm,
-            browser_session=session,
-            max_failures=3,
-        )
-        result = await agent.run(max_steps=20)
-        # browser_use returns an AgentHistoryList; final_result() extracts the last done action text
-        return result.final_result() or ""
+        await session.start()
+        await session.navigate_to("https://www.medicare.gov")
+
+        page = await session.must_get_current_page()
+        extracted = await page.extract_content(task, ExtractionResponse, llm=llm)
+
+        parts: list[str] = []
+        if extracted.phone_number:
+            parts.append(extracted.phone_number.strip())
+        if extracted.description:
+            parts.append(extracted.description.strip())
+
+        return "\n".join(parts)
     finally:
         try:
             await session.stop()
