@@ -1,0 +1,115 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 380px;
+  min-height: 400px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 18px;
+  line-height: 1.6;
+  color: #222;
+  background: #fff;
+}
+
+header {
+  background: #1a6fad;
+  padding: 16px 20px;
+}
+
+.logo {
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+h1.logo {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+}
+
+main {
+  padding: 20px;
+}
+
+/* State visibility */
+.state { display: block; }
+.hidden { display: none; }
+
+/* Loading */
+.loading-text {
+  font-size: 20px;
+  color: #555;
+  text-align: center;
+  margin-top: 60px;
+}
+
+/* Appointment card */
+.section-label {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #1a6fad;
+  margin-bottom: 10px;
+}
+
+.card {
+  background: #f0f7ff;
+  border-left: 5px solid #1a6fad;
+  border-radius: 6px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+}
+
+.appt-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 6px;
+}
+
+.appt-when {
+  font-size: 19px;
+  color: #333;
+}
+
+.appt-location {
+  font-size: 17px;
+  color: #555;
+  margin-top: 6px;
+}
+
+/* Prep advice */
+.prep {
+  background: #fffbea;
+  border-left: 5px solid #e6a817;
+  border-radius: 6px;
+  padding: 14px 18px;
+}
+
+.prep-text {
+  font-size: 17px;
+  color: #333;
+  line-height: 1.7;
+}
+
+/* Error */
+.error-text {
+  font-size: 20px;
+  font-weight: 600;
+  color: #c0392b;
+  text-align: center;
+  margin-top: 50px;
+  margin-bottom: 10px;
+}
+
+.error-sub {
+  font-size: 16px;
+  color: #555;
+  text-align: center;
+}
