@@ -3,7 +3,7 @@
   "name": "SafeStep",
   "version": "1.0",
   "description": "Your senior-friendly browser copilot",
-  "permissions": ["tabs", "scripting", "activeTab", "storage"],
+  "permissions": ["tabs", "scripting", "activeTab", "storage", "alarms"],
   "background": {
     "service_worker": "background.js"
   },

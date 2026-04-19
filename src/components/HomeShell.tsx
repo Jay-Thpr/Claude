@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import BrowserTaskArea, { type BrowserTaskAreaHandle } from "@/components/BrowserTaskArea";
 import CopilotPanel from "@/components/CopilotPanel";
+import TwilioCallPanel from "@/components/TwilioCallPanel";
+import GoogleSearchEmbed from "@/components/GoogleSearchEmbed";
 
 export default function HomeShell() {
   const browserAreaRef = useRef<BrowserTaskAreaHandle | null>(null);
-  const [currentUrl, setCurrentUrl] = useState("https://www.google.com");
-  const [currentPageTitle, setCurrentPageTitle] = useState("Google");
+  const [currentUrl, setCurrentUrl] = useState("");
+  const [currentPageTitle, setCurrentPageTitle] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -38,6 +40,14 @@ export default function HomeShell() {
     }, 200);
   };
 
+  const togglePanel = () => {
+    if (panelOpen && !closing) {
+      closePanel();
+    } else {
+      openPanel();
+    }
+  };
+
   const runPharmacyTrace = () => {
     browserAreaRef.current?.runTask(pharmacyTask);
   };
@@ -49,14 +59,18 @@ export default function HomeShell() {
   return (
     <div className="app-shell">
       <div className="home-stage">
-        <BrowserTaskArea
-          ref={browserAreaRef}
-          currentUrl={currentUrl}
-          currentPageTitle={currentPageTitle}
-          onUrlChange={setCurrentUrl}
-          onPageTitleChange={setCurrentPageTitle}
-          onOpenAssistant={openPanel}
-        />
+        <GoogleSearchEmbed />
+
+        <div className="home-browser-wrap">
+          <BrowserTaskArea
+            ref={browserAreaRef}
+            currentUrl={currentUrl}
+            currentPageTitle={currentPageTitle}
+            onUrlChange={setCurrentUrl}
+            onPageTitleChange={setCurrentPageTitle}
+            onOpenAssistant={openPanel}
+          />
+        </div>
       </div>
 
       {panelOpen && (
@@ -71,13 +85,18 @@ export default function HomeShell() {
         </div>
       )}
 
+      <TwilioCallPanel
+        currentUrl={currentUrl}
+        currentPageTitle={currentPageTitle}
+      />
+
       <button
         className="fab"
-        onClick={openPanel}
-        aria-label="Open SafeStep"
-        title="Open SafeStep"
+        onClick={togglePanel}
+        aria-label={panelOpen ? "Close SafeStep" : "Open SafeStep"}
+        title={panelOpen ? "Close SafeStep" : "Open SafeStep"}
       >
-        🦮
+        {panelOpen && !closing ? "✕" : "🦮"}
       </button>
     </div>
   );

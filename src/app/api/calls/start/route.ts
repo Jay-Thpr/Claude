@@ -101,6 +101,36 @@ export async function POST(request: Request) {
     const statusCallbackUrl = new URL(`/api/calls/${session.id}/status`, baseUrl);
     const voiceRuntime = getVoiceRuntimeConfig();
 
+    if (voiceRuntime.mode === "media-stream") {
+      if (!process.env.APP_BASE_URL) {
+        await updateCallSession(session.id, {
+          status: "failed",
+          status_message: "TWILIO_MEDIA_STREAM_URL is set but APP_BASE_URL is missing.",
+        });
+        return Response.json(
+          {
+            error:
+              "Live voice calling is misconfigured: APP_BASE_URL must be set when TWILIO_MEDIA_STREAM_URL is enabled.",
+          },
+          { status: 500 }
+        );
+      }
+
+      if (!process.env.TWILIO_VOICE_EVENTS_SECRET) {
+        await updateCallSession(session.id, {
+          status: "failed",
+          status_message: "TWILIO_MEDIA_STREAM_URL is set but TWILIO_VOICE_EVENTS_SECRET is missing.",
+        });
+        return Response.json(
+          {
+            error:
+              "Live voice calling is misconfigured: TWILIO_VOICE_EVENTS_SECRET must be set so transcripts and outcomes can be written back.",
+          },
+          { status: 500 }
+        );
+      }
+    }
+
     if (voiceRuntime.mode === "external-twiml" && voiceRuntime.runtimeUrl) {
       twimlUrl.href = voiceRuntime.runtimeUrl;
     }
@@ -136,7 +166,7 @@ export async function POST(request: Request) {
         voiceRuntime.mode === "external-twiml"
           ? "Call will be handed to the configured Twilio voice webhook."
           : voiceRuntime.mode === "media-stream"
-            ? "Call will start with SafeStep disclosure and then hand off to the configured Twilio media stream runtime."
+            ? "Call will connect directly to the configured Twilio media stream runtime."
             : "Call starts with a basic TwiML intro. Configure TWILIO_MEDIA_STREAM_URL to enable live AI voice handling.",
     });
   } catch (err) {

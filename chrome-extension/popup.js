@@ -321,11 +321,6 @@ function handleMemory() {
   );
 }
 
-function handleShowContent() {
-  appendMessage('Show me the page text.', 'user');
-  appendMessage(pageContent || '(no page text captured)', 'assistant', 'neutral');
-}
-
 async function triggerPageModal({ tone, explanation, bullets }) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -337,15 +332,11 @@ async function triggerPageModal({ tone, explanation, bullets }) {
 }
 
 function showAlertBanner(tone, bullets) {
-  if (alertBannerDismissed) return;
   const banner = document.getElementById('alert-banner');
   const title = document.getElementById('alert-title');
   const signalsList = document.getElementById('alert-signals');
 
-  if (!banner || !title || !signalsList) return;
-
   banner.className = `alert-banner tone-${tone}`;
-  banner.classList.remove('hidden');
   title.textContent = tone === 'danger'
     ? '🚨 This page looks dangerous — do not enter personal details'
     : '⚠️ This page has warning signs — proceed carefully';
@@ -360,7 +351,6 @@ function showAlertBanner(tone, bullets) {
   }
 
   document.getElementById('alert-details-btn').onclick = () => switchTab('chat');
-  document.getElementById('alert-dismiss-btn').onclick = () => { void dismissAlertBanner(); };
 
   const spokenTitle = tone === 'danger'
     ? 'Warning! This page looks dangerous. Do not enter any personal details.'
@@ -369,47 +359,21 @@ function showAlertBanner(tone, bullets) {
 }
 
 async function autoAnalyzePage() {
-  if (!pageContent && !pageUrl) return;
-
-  // Cache per URL for the session — avoid re-calling on every popup open
-  const cacheKey = `analysis:${pageUrl}`;
+  if (!pageUrl) return;
+  const cacheKey = `orient:${pageUrl}`;
   const cached = await chrome.storage.session.get(cacheKey).catch(() => ({}));
-  const dismissed = await isAlertDismissed(pageUrl);
-  if (cached[cacheKey]) {
-    const { explanation, tone, bullets } = cached[cacheKey];
-    appendMessage(explanation, 'assistant', tone, bullets);
-    if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
-    if (tone === 'danger' && !dismissed) {
-      await switchTab('chat');
-      triggerPageModal({ tone, explanation, bullets });
-    }
-    return;
-  }
+  if (!cached[cacheKey]) return; // background hasn't analyzed yet, skip
 
-  try {
-    setThinking(true, 'Checking the current page…');
-    const res = await fetch(`${API_BASE}/api/scam-check`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: pageUrl, pageTitle, content: pageContent }),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const tone = deriveTone(data.classification || data.riskLevel);
-    const bullets = Array.isArray(data.suspicious_signals) && data.suspicious_signals.length
-      ? data.suspicious_signals : null;
-    const explanation = data.explanation || 'I checked this page for you.';
-    appendMessage(explanation, 'assistant', tone, bullets);
-    if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
-    if (tone === 'danger' && !dismissed) {
-      await switchTab('chat');
-      triggerPageModal({ tone, explanation, bullets });
-    }
-    chrome.storage.session.set({ [cacheKey]: { explanation, tone, bullets } }).catch(() => {});
-  } catch {
-    /* silent */
-  } finally {
-    setThinking(false);
+  const { explanation, safetyTone, tone, bullets, safetyExplanation } = cached[cacheKey];
+  const resolvedTone = safetyTone || tone || 'neutral';
+  const resolvedExplanation = safetyExplanation || explanation || 'I checked this page for you.';
+
+  if (resolvedTone === 'danger' || resolvedTone === 'warning') {
+    showAlertBanner(resolvedTone, bullets);
+  }
+  if (resolvedTone === 'danger' && !await isAlertDismissed(pageUrl)) {
+    switchTab('chat');
+    triggerPageModal({ tone: resolvedTone, explanation: resolvedExplanation, bullets });
   }
 }
 
@@ -421,7 +385,6 @@ async function sendMessage() {
 
   isSending = true;
   setActionButtonsDisabled(true);
-  setThinking(true, 'SafeStep is thinking about your message…');
   input.value = '';
   input.style.height = 'auto';
   appendMessage(text, 'user');
@@ -444,6 +407,7 @@ async function sendMessage() {
     const data = await res.json();
     if (data.task_memory) {
       taskMemory = data.task_memory;
+      chrome.storage.local.set({ safestep_memory: data.task_memory }).catch(() => {});
     }
     const tone = deriveTone(data.riskLevel);
     appendMessage(data.message || data.reply || 'I am here to help.', 'assistant', tone);
@@ -452,7 +416,6 @@ async function sendMessage() {
   } finally {
     isSending = false;
     setActionButtonsDisabled(false);
-    setThinking(false);
     input.focus();
   }
 }
@@ -467,17 +430,14 @@ function autoResize(el) {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await loadActiveTab();
-
   // Tab switching
-  document.getElementById('tab-appointments').addEventListener('click', () => { void switchTab('appointments'); });
-  document.getElementById('tab-chat').addEventListener('click', () => { void switchTab('chat'); });
+  document.getElementById('tab-appointments').addEventListener('click', () => switchTab('appointments'));
+  document.getElementById('tab-chat').addEventListener('click', () => switchTab('chat'));
 
   // Action buttons
   document.getElementById('btn-safe').addEventListener('click', handleSafe);
   document.getElementById('btn-next').addEventListener('click', handleNext);
   document.getElementById('btn-memory').addEventListener('click', handleMemory);
-  document.getElementById('btn-show-content').addEventListener('click', handleShowContent);
 
   // Voice
   initVoiceInput();
@@ -500,7 +460,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     pageUrl = tab?.url || '';
     pageTitle = tab?.title || '';
-    alertBannerDismissed = await isAlertDismissed(pageUrl);
     if (tab?.id) {
       const [{ result }] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -513,31 +472,46 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Auto-analyze the current page
   void autoAnalyzePage();
 
-  // Fetch task memory silently
-  fetch(`${API_BASE}/api/memory`)
-    .then(r => r.json())
-    .then(d => { taskMemory = d; })
-    .catch(() => {});
+  // Fetch task memory — read from local storage first (set by background.js and widget)
+  chrome.storage.local.get('safestep_memory').then(stored => {
+    if (stored.safestep_memory) {
+      taskMemory = stored.safestep_memory;
+    } else {
+      // Fall back to API if no local cache
+      fetch(`${API_BASE}/api/memory`)
+        .then(r => r.json())
+        .then(d => {
+          taskMemory = d;
+          chrome.storage.local.set({ safestep_memory: d }).catch(() => {});
+        })
+        .catch(() => {});
+    }
+  }).catch(() => {});
 
   // Load appointments
   showState('state-loading');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
 
+  // Check local cache first
+  chrome.storage.local.get('safestep_appointments').then(stored => {
+    if (stored.safestep_appointments?.appointments?.length) {
+      const appt = stored.safestep_appointments.appointments[0];
+      // Render with cached data — don't wait for API
+      renderAppointment({ appointment: appt });
+    }
+  }).catch(() => {});
+
+  // Then fetch fresh from API
   fetch(`${API_BASE}/api/appointments?includeAdvice=false`, { signal: controller.signal })
-    .then(res => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+    .then(res => { if (!res.ok) throw new Error(); return res.json(); })
+    .then(data => {
+      renderAppointment(data);
+      // Cache for future use
+      if (data.appointment) {
+        chrome.storage.local.set({ safestep_appointments: { appointments: [data.appointment], lastFetched: Date.now() } }).catch(() => {});
+      }
     })
-    .then(data => renderAppointment(data))
     .catch(() => showState('state-error'))
     .finally(() => clearTimeout(timer));
-});
-
-chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== 'session') return;
-  const nextTab = changes[ACTIVE_TAB_KEY]?.newValue;
-  if (nextTab === 'chat' || nextTab === 'appointments') {
-    applyTab(nextTab);
-  }
 });

@@ -20,6 +20,7 @@
     "tests/prd.test.ts",
     "tests/next-step.test.ts",
     "tests/orchestration.test.ts",
+    "tests/proactive.test.ts",
     "src/lib/appointment-reminders.ts",
     "src/lib/appointment-context.ts",
     "src/lib/safety-rules.ts",
@@ -32,6 +33,11 @@
     "src/lib/supabase-server.ts",
     "src/lib/user-context.ts",
     "src/lib/orchestrator.ts",
-    "src/app/api/next-step/route.ts"
+    "src/lib/intent-router.ts",
+    "src/app/api/next-step/route.ts",
+    "src/app/api/orient/route.ts",
+    "src/app/api/gcal/upcoming/route.ts",
+    "src/app/api/task/start/route.ts",
+    "src/app/api/task/step/route.ts"
   ]
 }

@@ -140,6 +140,8 @@ function buildProviderIntroTwiml(params) {
 </Response>`;
 }
 function buildProviderVoiceStreamTwiml(params) {
+    const serializedAppointmentContext = JSON.stringify(params.appointmentContext || {});
+    const serializedConstraints = JSON.stringify(params.constraints || []);
     const escaped = {
         streamUrl: escapeXml(params.streamUrl),
         streamStatusCallbackUrl: escapeXml(params.streamStatusCallbackUrl),
@@ -148,11 +150,11 @@ function buildProviderVoiceStreamTwiml(params) {
         patientName: escapeXml(params.patientName),
         callGoal: escapeXml(params.callGoal),
         callbackNumber: escapeXml(params.callbackNumber || ""),
+        appointmentContext: escapeXml(serializedAppointmentContext),
+        constraints: escapeXml(serializedConstraints),
     };
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice">Hello. This is SafeStep, an AI assistant calling on behalf of ${escaped.patientName}.</Say>
-  <Say voice="alice">This call is for administrative support only.</Say>
   <Connect>
     <Stream url="${escaped.streamUrl}" statusCallback="${escaped.streamStatusCallbackUrl}" statusCallbackMethod="POST" name="provider-support-stream">
       <Parameter name="sessionId" value="${escaped.sessionId}" />
@@ -160,6 +162,8 @@ function buildProviderVoiceStreamTwiml(params) {
       <Parameter name="patientName" value="${escaped.patientName}" />
       <Parameter name="callGoal" value="${escaped.callGoal}" />
       <Parameter name="callbackNumber" value="${escaped.callbackNumber}" />
+      <Parameter name="appointmentContext" value="${escaped.appointmentContext}" />
+      <Parameter name="constraints" value="${escaped.constraints}" />
     </Stream>
   </Connect>
 </Response>`;

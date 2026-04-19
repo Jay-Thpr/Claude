@@ -14,7 +14,7 @@ type VoiceEventPayload = {
 function isAuthorized(request: Request) {
   const expectedSecret = process.env.TWILIO_VOICE_EVENTS_SECRET;
   if (!expectedSecret) {
-    return false;
+    throw new Error("TWILIO_VOICE_EVENTS_SECRET is not configured.");
   }
 
   const header = request.headers.get("x-safestep-voice-secret");
@@ -52,6 +52,9 @@ export async function POST(
     return Response.json({ success: true });
   } catch (err) {
     logger.error("call-voice-events-route", "Failed to process voice runtime event", err);
+    if (err instanceof Error && err.message.includes("TWILIO_VOICE_EVENTS_SECRET")) {
+      return Response.json({ error: err.message }, { status: 500 });
+    }
     return Response.json({ error: "Failed to persist voice runtime event." }, { status: 500 });
   }
 }

@@ -452,6 +452,67 @@ body {
   border: 0;
 }
 
+.call-dock {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid var(--color-surface-200);
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(34, 44, 37, 0.12);
+  overflow: hidden;
+  z-index: 100;
+}
+
+.call-dock-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--color-surface-200);
+  background: linear-gradient(180deg, rgba(232, 245, 243, 0.9), rgba(255, 255, 255, 0.95));
+}
+
+.call-dock-header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.call-dock-eyebrow {
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-primary-700);
+}
+
+.call-dock-header h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.call-dock-link {
+  color: var(--color-primary-700);
+  font-size: 0.9rem;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.call-dock-body {
+  overflow-y: auto;
+  padding: 18px 20px 20px;
+}
+
 .local-search-shell {
   min-height: 100vh;
   padding: 24px;
@@ -562,6 +623,135 @@ body {
 .local-search-result-list {
   display: grid;
   gap: 14px;
+}
+
+.call-dock-field {
+  display: grid;
+  gap: 6px;
+}
+
+.call-dock-field span,
+.call-dock-card-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.call-dock-field input,
+.call-dock-field textarea {
+  width: 100%;
+  border: 1px solid var(--color-surface-300);
+  border-radius: 14px;
+  background: var(--color-surface-50);
+  padding: 12px 14px;
+  font-size: 0.98rem;
+  color: var(--color-text-primary);
+}
+
+.call-dock-field textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.call-dock-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.95rem;
+  color: var(--color-text-secondary);
+}
+
+.call-dock-checkbox input {
+  margin-top: 5px;
+}
+
+.call-dock-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.call-dock-primary,
+.call-dock-secondary {
+  flex: 1;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.call-dock-primary {
+  background: var(--color-primary-600);
+  color: white;
+}
+
+.call-dock-secondary {
+  background: white;
+  border-color: var(--color-surface-300);
+  color: var(--color-text-primary);
+}
+
+.call-dock-primary:disabled,
+.call-dock-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.call-dock-note,
+.call-dock-error {
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 0.92rem;
+}
+
+.call-dock-note {
+  background: var(--color-warning-bg);
+  color: #7b5600;
+}
+
+.call-dock-error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.call-dock-error-inline {
+  color: var(--color-danger);
+}
+
+.call-dock-status,
+.call-dock-card {
+  border: 1px solid var(--color-surface-200);
+  border-radius: 16px;
+  background: var(--color-surface-50);
+  padding: 14px;
+}
+
+.call-dock-status {
+  display: grid;
+  gap: 10px;
+}
+
+.call-dock-checklist {
+  display: grid;
+  gap: 8px;
+  color: var(--color-text-secondary);
+}
+
+.call-dock-status-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-text-secondary);
+}
+
+.call-dock-status-row strong {
+  text-align: right;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
 }
 
 .local-search-result-card {
