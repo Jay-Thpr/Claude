@@ -14,6 +14,8 @@ export interface ScamCheckRecord {
 export async function logScamCheck(record: ScamCheckRecord): Promise<void> {
   try {
     const supabase = createServerSupabaseClient();
+    if (!supabase) return;
+
     const { error } = await supabase.from("scam_checks").insert({
       user_id: record.user_id,
       url: record.url,
@@ -37,6 +39,8 @@ export async function getRecentScamChecks(
 ): Promise<ScamCheckRecord[]> {
   try {
     const supabase = createServerSupabaseClient();
+    if (!supabase) return [];
+
     const { data, error } = await supabase
       .from("scam_checks")
       .select("*")

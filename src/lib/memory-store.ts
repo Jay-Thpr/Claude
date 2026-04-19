@@ -17,6 +17,8 @@ export type TaskMemoryPatch = Partial<
 export async function getTaskMemory(userId: string): Promise<TaskMemory | null> {
   try {
     const supabase = createServerSupabaseClient();
+    if (!supabase) return null;
+
     const { data, error } = await supabase
       .from("task_memory")
       .select("*")
@@ -43,6 +45,8 @@ export async function updateTaskMemory(
 ): Promise<void> {
   try {
     const supabase = createServerSupabaseClient();
+    if (!supabase) return;
+
     const { error } = await supabase.from("task_memory").upsert(
       {
         user_id: userId,
