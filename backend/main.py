@@ -6,6 +6,7 @@ Provides SSE streaming of browser agent steps.
 import asyncio
 import json
 import os
+import traceback
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, WebSocket
@@ -173,4 +174,8 @@ async def twilio_media_stream(websocket: WebSocket):
     """Bidirectional media bridge between Twilio Media Streams and Gemini Live."""
     from voice_runtime import bridge_twilio_to_gemini
 
-    await bridge_twilio_to_gemini(websocket)
+    try:
+        await bridge_twilio_to_gemini(websocket)
+    except Exception:
+        traceback.print_exc()
+        raise

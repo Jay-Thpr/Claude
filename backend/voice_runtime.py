@@ -159,23 +159,37 @@ def _resample_pcm16(audio_bytes: bytes, src_rate: int, dst_rate: int) -> bytes:
     if not source:
         return b""
 
-    destination_length = max(1, int(len(source) * dst_rate / src_rate))
-    destination = array("h")
-
-    if len(source) == 1:
-        destination.extend([source[0]] * destination_length)
+    if dst_rate < src_rate:
+        # Downsampling: average blocks of samples (box filter) to prevent aliasing.
+        # The old linear-interpolation approach dropped samples without filtering,
+        # causing audible distortion on the 24kHz→8kHz path.
+        ratio = src_rate / dst_rate
+        destination_length = max(1, int(len(source) / ratio))
+        destination = array("h")
+        for i in range(destination_length):
+            start = int(i * ratio)
+            end = min(int((i + 1) * ratio), len(source))
+            if end <= start:
+                end = start + 1
+            block = source[start:end]
+            destination.append(sum(block) // len(block))
         return destination.tobytes()
-
-    scale = (len(source) - 1) / max(destination_length - 1, 1)
-    for index in range(destination_length):
-        position = index * scale
-        left = int(position)
-        right = min(left + 1, len(source) - 1)
-        fraction = position - left
-        sample = int(source[left] * (1.0 - fraction) + source[right] * fraction)
-        destination.append(sample)
-
-    return destination.tobytes()
+    else:
+        # Upsampling: linear interpolation is fine here.
+        destination_length = max(1, int(len(source) * dst_rate / src_rate))
+        destination = array("h")
+        if len(source) == 1:
+            destination.extend([source[0]] * destination_length)
+            return destination.tobytes()
+        scale = (len(source) - 1) / max(destination_length - 1, 1)
+        for index in range(destination_length):
+            position = index * scale
+            left = int(position)
+            right = min(left + 1, len(source) - 1)
+            fraction = position - left
+            sample = int(source[left] * (1.0 - fraction) + source[right] * fraction)
+            destination.append(sample)
+        return destination.tobytes()
 
 
 def _twilio_payload_to_pcm16(payload: str) -> bytes:
@@ -197,13 +211,6 @@ def _pcm16_to_twilio_payload(audio_bytes: bytes, sample_rate: int) -> str:
     samples.frombytes(pcm_for_twilio)
     mulaw_bytes = bytes(_encode_mulaw_sample(sample) for sample in samples)
     return base64.b64encode(mulaw_bytes).decode("ascii")
-
-
-def _chunk_duration_ms(audio_bytes: bytes, sample_rate: int) -> int:
-    if not audio_bytes or sample_rate <= 0:
-        return 0
-    sample_count = len(audio_bytes) // 2
-    return max(1, int(sample_count * 1000 / sample_rate))
 
 
 def _chunk_rms(audio_bytes: bytes) -> int:
@@ -368,26 +375,21 @@ async def bridge_twilio_to_gemini(websocket: WebSocket) -> None:
     }
 
     stop_event = asyncio.Event()
+    # Tracks whether Gemini is actively sending audio to the phone.
+    # Used to gate echo (Gemini's own voice reflecting back through the mic).
+    gemini_speaking = asyncio.Event()
 
     async with client.aio.live.connect(model=model, config=config) as session:
         await _post_voice_event(
             context.session_id,
-            {
-                "status_message": "Gemini voice runtime connected to the Twilio media stream.",
-            },
+            {"status_message": "Gemini voice runtime connected to the Twilio media stream."},
         )
 
         async def twilio_to_gemini() -> None:
-            local_speech_window_open = False
-            local_silence_ms = 0
-
-            async def send_audio_chunk(audio_bytes: bytes) -> None:
-                await session.send_realtime_input(
-                    audio=types.Blob(
-                        data=audio_bytes,
-                        mime_type=f"audio/pcm;rate={GEMINI_INPUT_RATE}",
-                    )
-                )
+            # When Gemini is speaking, its audio echoes back through the phone mic.
+            # Gate inbound audio at 2x the normal threshold to suppress that echo
+            # while still allowing louder barge-in speech to pass through.
+            echo_gate = SPEECH_RMS_THRESHOLD * 2
 
             try:
                 while True:
@@ -400,76 +402,39 @@ async def bridge_twilio_to_gemini(websocket: WebSocket) -> None:
                         payload = media.get("payload")
                         if not payload:
                             continue
+
                         context.inbound_media_chunks += 1
+                        pcm_audio = _twilio_payload_to_pcm16(payload)
+                        if not pcm_audio:
+                            continue
+
+                        if gemini_speaking.is_set() and _chunk_rms(pcm_audio) < echo_gate:
+                            continue
+
+                        await session.send_realtime_input(
+                            audio=types.Blob(
+                                data=pcm_audio,
+                                mime_type=f"audio/pcm;rate={GEMINI_INPUT_RATE}",
+                            )
+                        )
+
                         if context.inbound_media_chunks in {1, 10, 25, 50}:
                             await _post_voice_event(
                                 context.session_id,
                                 {
                                     "status_message": (
-                                        f"Receiving caller audio from Twilio. "
-                                        f"Chunks forwarded: {context.inbound_media_chunks}."
-                                    ),
-                                    "transcript_excerpt": context.transcript_excerpt(),
-                                },
-                            )
-                        pcm_audio = _twilio_payload_to_pcm16(payload)
-                        if not pcm_audio:
-                            continue
-
-                        chunk_ms = _chunk_duration_ms(pcm_audio, GEMINI_INPUT_RATE)
-                        chunk_rms = _chunk_rms(pcm_audio)
-                        is_speech = chunk_rms >= SPEECH_RMS_THRESHOLD
-
-                        if context.inbound_media_chunks in {10, 25, 50} and not local_speech_window_open:
-                            await _post_voice_event(
-                                context.session_id,
-                                {
-                                    "status_message": (
-                                        "Waiting for caller speech to cross the detector threshold. "
-                                        f"Latest rms={chunk_rms}, threshold={SPEECH_RMS_THRESHOLD}."
+                                        f"Forwarding caller audio to Gemini. "
+                                        f"Chunks: {context.inbound_media_chunks}."
                                     ),
                                     "transcript_excerpt": context.transcript_excerpt(),
                                 },
                             )
 
-                        if is_speech:
-                            local_silence_ms = 0
-                            if not local_speech_window_open:
-                                local_speech_window_open = True
-                                await _post_voice_event(
-                                    context.session_id,
-                                    {
-                                        "status_message": (
-                                            "Observed likely caller speech locally "
-                                            f"(rms={chunk_rms}, threshold={SPEECH_RMS_THRESHOLD})."
-                                        ),
-                                        "transcript_excerpt": context.transcript_excerpt(),
-                                    },
-                                )
-                        else:
-                            if local_speech_window_open:
-                                local_silence_ms += chunk_ms
-                                if local_silence_ms >= 800:
-                                    local_speech_window_open = False
-                                    local_silence_ms = 0
-                                    await _post_voice_event(
-                                        context.session_id,
-                                        {
-                                            "status_message": (
-                                                "Observed likely caller silence locally and returned to idle "
-                                                "(Gemini automatic VAD remains active)."
-                                            ),
-                                            "transcript_excerpt": context.transcript_excerpt(),
-                                        },
-                                    )
-                            else:
-                                local_silence_ms = 0
-
-                        await send_audio_chunk(pcm_audio)
                     elif event == "stop":
                         stop_event.set()
                         await session.send_realtime_input(audio_stream_end=True)
                         return
+
             except WebSocketDisconnect:
                 stop_event.set()
                 try:
@@ -480,6 +445,7 @@ async def bridge_twilio_to_gemini(websocket: WebSocket) -> None:
         async def gemini_to_twilio() -> None:
             heard_provider_speech = False
             suppressed_startup_audio = False
+
             async for message in session.receive():
                 server_content = message.server_content
                 if not server_content:
@@ -488,93 +454,104 @@ async def bridge_twilio_to_gemini(websocket: WebSocket) -> None:
                 if server_content.input_transcription and server_content.input_transcription.text:
                     heard_provider_speech = True
                     context.append_transcript("Provider", server_content.input_transcription.text)
+                    # Barge-in: caller spoke while Gemini was talking.
+                    # Clear Twilio's audio queue so voices don't overlap,
+                    # then drop the speaking flag so echo gating stops.
+                    if gemini_speaking.is_set() and context.stream_sid:
+                        await websocket.send_json(
+                            {"event": "clear", "streamSid": context.stream_sid}
+                        )
+                        gemini_speaking.clear()
                     await _push_transcript_update(
                         context,
-                        status_message="Gemini transcribed caller speech and unlocked live responses.",
+                        status_message="Gemini transcribed caller speech.",
                     )
 
-                if (
-                    server_content.output_transcription
-                    and server_content.output_transcription.text
-                ):
-                    if heard_provider_speech or (loop.time() - connect_started_at) >= (
-                        MODEL_STARTUP_QUIET_MS / 1000
-                    ):
-                        context.append_transcript("SafeStep", server_content.output_transcription.text)
+                if server_content.output_transcription and server_content.output_transcription.text:
+                    allow_transcript = heard_provider_speech or (
+                        (loop.time() - connect_started_at) >= (MODEL_STARTUP_QUIET_MS / 1000)
+                    )
+                    if allow_transcript:
+                        context.append_transcript(
+                            "SafeStep", server_content.output_transcription.text
+                        )
                         await _push_transcript_update(
                             context,
                             status_message="Gemini generated a spoken response.",
                         )
 
                 model_turn = server_content.model_turn
-                if not model_turn or not model_turn.parts or not context.stream_sid:
-                    if server_content.turn_complete and stop_event.is_set():
-                        return
-                    continue
+                if model_turn and model_turn.parts and context.stream_sid:
+                    allow_model_audio = heard_provider_speech or (
+                        (loop.time() - connect_started_at) >= (MODEL_STARTUP_QUIET_MS / 1000)
+                    )
 
-                allow_model_audio = heard_provider_speech or (
-                    (loop.time() - connect_started_at) >= (MODEL_STARTUP_QUIET_MS / 1000)
-                )
+                    for part in model_turn.parts:
+                        inline_data = part.inline_data
+                        if not inline_data or not inline_data.data:
+                            continue
+                        if not inline_data.mime_type or "audio/pcm" not in inline_data.mime_type:
+                            continue
+                        if not allow_model_audio:
+                            if not suppressed_startup_audio:
+                                suppressed_startup_audio = True
+                                await _post_voice_event(
+                                    context.session_id,
+                                    {
+                                        "status_message": (
+                                            "Suppressed early Gemini audio during startup quiet window."
+                                        )
+                                    },
+                                )
+                            continue
 
-                for part in model_turn.parts:
-                    inline_data = part.inline_data
-                    if not inline_data or not inline_data.data:
-                        continue
-                    if not inline_data.mime_type or "audio/pcm" not in inline_data.mime_type:
-                        continue
-                    if not allow_model_audio:
-                        if not suppressed_startup_audio:
-                            suppressed_startup_audio = True
+                        gemini_speaking.set()
+                        context.outbound_audio_chunks += 1
+                        payload = _pcm16_to_twilio_payload(
+                            inline_data.data,
+                            _parse_sample_rate(inline_data.mime_type, GEMINI_OUTPUT_RATE),
+                        )
+                        await websocket.send_json(
+                            {
+                                "event": "media",
+                                "streamSid": context.stream_sid,
+                                "media": {"payload": payload},
+                            }
+                        )
+                        if context.outbound_audio_chunks in {1, 10, 25, 50}:
                             await _post_voice_event(
                                 context.session_id,
                                 {
                                     "status_message": (
-                                        "Suppressed early Gemini audio during the startup quiet window "
-                                        "to reduce phone-call echo and noise."
+                                        f"Streaming Gemini audio back to Twilio. "
+                                        f"Chunks sent: {context.outbound_audio_chunks}."
                                     ),
                                     "transcript_excerpt": context.transcript_excerpt(),
                                 },
                             )
-                        continue
 
-                    context.outbound_audio_chunks += 1
-                    payload = _pcm16_to_twilio_payload(
-                        inline_data.data,
-                        _parse_sample_rate(inline_data.mime_type, GEMINI_OUTPUT_RATE),
-                    )
-                    await websocket.send_json(
-                        {
-                            "event": "media",
-                            "streamSid": context.stream_sid,
-                            "media": {"payload": payload},
-                        }
-                    )
-                    if context.outbound_audio_chunks in {1, 10, 25, 50}:
-                        await _post_voice_event(
-                            context.session_id,
-                            {
-                                "status_message": (
-                                    f"Streaming Gemini audio back to Twilio. "
-                                    f"Chunks sent: {context.outbound_audio_chunks}."
-                                ),
-                                "transcript_excerpt": context.transcript_excerpt(),
-                            },
-                        )
-
-                if server_content.turn_complete and stop_event.is_set():
-                    return
+                if server_content.turn_complete:
+                    gemini_speaking.clear()
+                    if stop_event.is_set():
+                        return
 
         tasks = [
             asyncio.create_task(twilio_to_gemini()),
             asyncio.create_task(gemini_to_twilio()),
         ]
-        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+        # FIRST_COMPLETED: when Twilio hangs up (twilio_to_gemini returns),
+        # cancel gemini_to_twilio immediately rather than waiting for an exception.
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for task in pending:
             task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
         for task in done:
-            exception = task.exception()
-            if exception:
-                raise exception
+            exc = task.exception()
+            if exc:
+                raise exc
 
     outcome = _build_outcome_payload(context)
     outcome["status_message"] = (
