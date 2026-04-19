@@ -1,0 +1,321 @@
+@import "tailwindcss";
+
+/* ========================================
+   SafeStep Design System
+   Senior-friendly, calming, high-contrast
+   ======================================== */
+
+@theme {
+  /* Primary palette — calming teal/blue */
+  --color-primary-50: #e8f5f3;
+  --color-primary-100: #c5e8e2;
+  --color-primary-200: #9ed9cf;
+  --color-primary-300: #74c9bb;
+  --color-primary-400: #54bdad;
+  --color-primary-500: #35b09f;
+  --color-primary-600: #2d9e8f;
+  --color-primary-700: #23897b;
+  --color-primary-800: #1a7568;
+  --color-primary-900: #0d5448;
+
+  /* Warm neutral backgrounds */
+  --color-surface-50: #faf9f7;
+  --color-surface-100: #f5f3f0;
+  --color-surface-200: #eae7e2;
+  --color-surface-300: #d5d0c8;
+  --color-surface-400: #b8b0a4;
+  --color-surface-500: #9a9185;
+  --color-surface-600: #7d7368;
+  --color-surface-700: #5f564d;
+  --color-surface-800: #3d3632;
+  --color-surface-900: #1e1a17;
+
+  /* Safety colors */
+  --color-safe: #2d8a4e;
+  --color-safe-bg: #e8f5e9;
+  --color-warning: #d4880f;
+  --color-warning-bg: #fff8e1;
+  --color-danger: #c62828;
+  --color-danger-bg: #ffebee;
+
+  /* Text */
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #4a4a4a;
+  --color-text-muted: #7a7a7a;
+  --color-text-inverse: #ffffff;
+
+  /* Typography scale — larger for seniors */
+  --font-size-sm: 1rem;
+  --font-size-base: 1.125rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 1.875rem;
+  --font-size-3xl: 2.25rem;
+
+  /* Spacing */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+}
+
+/* ========================================
+   Base Styles
+   ======================================== */
+
+html {
+  font-size: 18px; /* Base 18px for readability */
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-50);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========================================
+   Component Styles
+   ======================================== */
+
+/* Two-pane layout */
+.app-layout {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  height: 100vh;
+  overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+}
+
+/* Copilot panel — right side */
+.copilot-panel {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(245, 243, 240, 0.98) 100%
+  );
+  backdrop-filter: blur(20px);
+  border-left: 1px solid var(--color-surface-200);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Browser task area — left side */
+.browser-area {
+  background: var(--color-surface-100);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Action buttons — large, tappable */
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.action-btn:active {
+  transform: translateY(0);
+}
+
+.action-btn-primary {
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+  color: white;
+}
+
+.action-btn-primary:hover {
+  background: linear-gradient(135deg, var(--color-primary-400), var(--color-primary-500));
+}
+
+.action-btn-secondary {
+  background: white;
+  color: var(--color-text-primary);
+  border-color: var(--color-surface-200);
+}
+
+.action-btn-secondary:hover {
+  background: var(--color-surface-50);
+  border-color: var(--color-primary-300);
+}
+
+/* Response cards */
+.response-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  border: 1px solid var(--color-surface-200);
+  animation: fadeSlideIn 0.3s ease-out;
+}
+
+.response-card-safe {
+  border-left: 4px solid var(--color-safe);
+  background: var(--color-safe-bg);
+}
+
+.response-card-warning {
+  border-left: 4px solid var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.response-card-danger {
+  border-left: 4px solid var(--color-danger);
+  background: var(--color-danger-bg);
+}
+
+/* Step indicators in browser task area */
+.step-item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  animation: fadeSlideIn 0.3s ease-out;
+}
+
+.step-item:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.step-number {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--color-primary-500);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+/* Status badge */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.status-idle {
+  background: var(--color-surface-200);
+  color: var(--color-text-secondary);
+}
+
+.status-running {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-paused {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.status-error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+/* Pulse animation for running status */
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Loading spinner */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid var(--color-surface-200);
+  border-top-color: var(--color-primary-500);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ========================================
+   Scrollbar — subtle, accessible
+   ======================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-300);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-surface-400);
+}
