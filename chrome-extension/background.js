@@ -43,6 +43,10 @@ async function analyzeTab(tabId, url, title) {
 
     await chrome.storage.session.set({ [cacheKey]: { explanation, tone, bullets } }).catch(() => {});
     applyBadge(tone);
+
+    if (tone === 'danger' || tone === 'warning') {
+      chrome.tabs.sendMessage(tabId, { type: 'SAFESTEP_ALERT', tone, explanation, bullets }).catch(() => {});
+    }
   } catch {
     applyBadge('neutral');
   }
