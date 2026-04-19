@@ -20,6 +20,27 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Supabase setup
+
+The app will use Supabase for real user memory, appointment, and context data when the database is configured.
+
+Required env vars:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+```
+
+If you want the demo seed data, run the SQL files in:
+
+- [`supabase/migrations/20260419000100_safestep_init.sql`](/Users/borislo830/Documents/GitHub/Claude/supabase/migrations/20260419000100_safestep_init.sql)
+- [`supabase/seed.sql`](/Users/borislo830/Documents/GitHub/Claude/supabase/seed.sql)
+
+Run them in this order:
+
+1. `supabase/migrations/20260419000100_safestep_init.sql`
+2. `supabase/seed.sql`
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 interface CopilotPanelProps {
   currentUrl: string;
   currentPageTitle: string;
+  onClose: () => void;
 }
 
 interface AssistantResponse {
@@ -14,17 +15,82 @@ interface AssistantResponse {
   timestamp: Date;
 }
 
+interface CalendarStatus {
+  connected: boolean;
+  message: string;
+  profile?: {
+    email?: string;
+    name?: string;
+  } | null;
+  nextAppointment?: {
+    summary: string;
+    whenLabel: string;
+    timeLabel?: string;
+    location?: string;
+  } | null;
+  source?: string;
+}
+
 export default function CopilotPanel({
   currentUrl,
   currentPageTitle,
+  onClose,
 }: CopilotPanelProps) {
   const [responses, setResponses] = useState<AssistantResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [freeText, setFreeText] = useState("");
+  const [calendarStatus, setCalendarStatus] = useState<CalendarStatus | null>(null);
+  const [calendarLoading, setCalendarLoading] = useState(false);
 
   const addResponse = useCallback((response: AssistantResponse) => {
     setResponses((prev) => [response, ...prev]);
   }, []);
+
+  const loadCalendarStatus = useCallback(async () => {
+    setCalendarLoading(true);
+    try {
+      const res = await fetch("/api/gcal/status");
+      const data = (await res.json()) as CalendarStatus;
+      setCalendarStatus(data);
+    } catch {
+      setCalendarStatus({
+        connected: false,
+        message: "I couldn't check Google Calendar right now.",
+      });
+    } finally {
+      setCalendarLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadCalendarStatus();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadCalendarStatus]);
+
+  const handleCalendarConnect = () => {
+    window.location.href = "/api/gcal/connect";
+  };
+
+  const handleCalendarDisconnect = async () => {
+    setCalendarLoading(true);
+    try {
+      const res = await fetch("/api/gcal/disconnect", { method: "POST" });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      await loadCalendarStatus();
+    } catch {
+      setCalendarStatus({
+        connected: false,
+        message: "I couldn't disconnect Google Calendar right now.",
+      });
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
 
   const handleNextStep = async () => {
     setIsLoading(true);
@@ -185,26 +251,105 @@ export default function CopilotPanel({
   };
 
   return (
-    <div className="copilot-panel" id="copilot-panel">
-      {/* Header */}
-      <div className="p-6 border-b border-surface-200">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xl">
-            🦮
+    <div className="flex flex-col h-full" id="copilot-panel">
+      {/* Panel header */}
+      <div className="panel-header">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🦮</span>
+          <span className="text-lg font-bold text-text-primary">SafeStep</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:bg-surface-200 hover:text-text-primary transition-colors text-lg"
+          aria-label="Close panel"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Calendar connection */}
+      <div className="panel-section bg-surface-50">
+        <div className="rounded-2xl border border-surface-200 bg-white p-4">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-text-muted">
+                Google Calendar
+              </p>
+              <h3 className="text-lg font-bold text-text-primary">
+                {calendarStatus?.connected ? "Connected" : "Not connected"}
+              </h3>
+            </div>
+            <span
+              className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                calendarStatus?.connected
+                  ? "bg-safe/10 text-safe"
+                  : "bg-warning/10 text-warning"
+              }`}
+            >
+              {calendarLoading
+                ? "Checking..."
+                : calendarStatus?.connected
+                  ? "Ready"
+                  : "Disconnected"}
+            </span>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-text-primary leading-tight">
-              SafeStep
-            </h1>
-            <p className="text-sm text-text-muted">
-              Your browsing companion
-            </p>
+
+          <p className="text-base text-text-secondary leading-relaxed">
+            {calendarStatus?.message ||
+              "Connect Google Calendar so SafeStep can mention your next appointment while helping you browse."}
+          </p>
+
+          {calendarStatus?.connected && calendarStatus.nextAppointment ? (
+            <div className="mt-3 rounded-xl bg-surface-50 p-3 border border-surface-200">
+              <p className="text-sm font-semibold text-text-muted uppercase tracking-wide mb-1">
+                Next event
+              </p>
+              <p className="text-base font-medium text-text-primary">
+                {calendarStatus.nextAppointment.summary}
+              </p>
+              <p className="text-sm text-text-secondary">
+                {calendarStatus.nextAppointment.whenLabel}
+                {calendarStatus.nextAppointment.timeLabel
+                  ? ` at ${calendarStatus.nextAppointment.timeLabel}`
+                  : ""}
+                {calendarStatus.nextAppointment.location
+                  ? ` · ${calendarStatus.nextAppointment.location}`
+                  : ""}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="mt-4 flex gap-2">
+            {calendarStatus?.connected ? (
+              <button
+                onClick={handleCalendarDisconnect}
+                disabled={calendarLoading}
+                className="flex-1 px-4 py-3 rounded-xl border-2 border-surface-200 text-text-primary font-semibold hover:border-danger hover:text-danger transition-colors disabled:opacity-50"
+              >
+                Disconnect
+              </button>
+            ) : (
+              <button
+                onClick={handleCalendarConnect}
+                disabled={calendarLoading}
+                className="flex-1 px-4 py-3 rounded-xl bg-primary-500 text-white font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
+              >
+                Connect Google Calendar
+              </button>
+            )}
+            <button
+              onClick={loadCalendarStatus}
+              disabled={calendarLoading}
+              className="px-4 py-3 rounded-xl border-2 border-surface-200 text-text-secondary font-semibold hover:border-primary-300 hover:text-primary-600 transition-colors disabled:opacity-50"
+            >
+              Refresh
+            </button>
           </div>
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="p-4 space-y-3 border-b border-surface-200">
+      <div className="panel-section space-y-2">
         <button
           id="btn-next-step"
           className="action-btn action-btn-primary"
@@ -217,7 +362,7 @@ export default function CopilotPanel({
 
         <button
           id="btn-scam-check"
-          className="action-btn action-btn-secondary"
+          className="action-btn action-btn-amber"
           onClick={handleScamCheck}
           disabled={isLoading}
         >
@@ -227,7 +372,7 @@ export default function CopilotPanel({
 
         <button
           id="btn-appointments"
-          className="action-btn action-btn-secondary"
+          className="action-btn action-btn-indigo"
           onClick={handleAppointments}
           disabled={isLoading}
         >
@@ -236,7 +381,7 @@ export default function CopilotPanel({
         </button>
 
         {/* Secondary actions */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-1">
           <button
             id="btn-memory"
             className="action-btn action-btn-secondary flex-1 !text-base !py-3"
@@ -251,7 +396,8 @@ export default function CopilotPanel({
             className="action-btn action-btn-secondary !text-base !py-3"
             onClick={() => {
               if (responses.length > 0) {
-                /* just re-show the last response */
+                const last = responses[0];
+                addResponse({ ...last, timestamp: new Date() });
               }
             }}
             disabled={isLoading || responses.length === 0}
@@ -262,7 +408,7 @@ export default function CopilotPanel({
       </div>
 
       {/* Free-text input */}
-      <div className="p-4 border-b border-surface-200">
+      <div className="panel-section">
         <div className="relative">
           <input
             id="free-text-input"
@@ -289,7 +435,7 @@ export default function CopilotPanel({
       </div>
 
       {/* Responses */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3" id="responses-area">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3" id="responses-area">
         {isLoading && (
           <div className="response-card flex items-center gap-3">
             <div className="spinner" />
@@ -311,9 +457,9 @@ export default function CopilotPanel({
           </div>
         )}
 
-        {responses.map((response, index) => (
+        {responses.map((response) => (
           <div
-            key={index}
+            key={response.timestamp.getTime()}
             className={`response-card ${getClassificationStyles(response.classification)}`}
           >
             <div className="flex items-center gap-2 mb-2">

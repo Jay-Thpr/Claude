@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Manrope } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const manrope = Manrope({
+  variable: "--font-sans",
   subsets: ["latin"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "SafeStep — Your Browsing Companion",
+  title: "SafeStep",
   description:
-    "A senior-friendly web copilot that helps you complete healthcare tasks, stay safe online, and never lose your place.",
+    "A browser-style SafeStep prototype that helps older adults with appointments, scam detection, and task memory.",
 };
 
 export default function RootLayout({
@@ -20,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
-      <body className="h-full antialiased">{children}</body>
+    <html lang="en" className={`${manrope.variable} h-full`}>
+      <body className="h-full bg-surface-50 antialiased">{children}</body>
     </html>
   );
 }

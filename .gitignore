@@ -35,6 +35,7 @@ yarn-error.log*
 
 # python backend
 backend/venv/
+backend/.venv-browser/
 __pycache__/
 *.pyc
 
