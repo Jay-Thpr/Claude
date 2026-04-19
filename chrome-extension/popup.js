@@ -236,7 +236,6 @@ async function autoAnalyzePage() {
     return;
   }
 
-  setActionButtonsDisabled(true);
   try {
     const res = await fetch(`${API_BASE}/api/scam-check`, {
       method: 'POST',
@@ -255,8 +254,6 @@ async function autoAnalyzePage() {
     chrome.storage.session.set({ [cacheKey]: { explanation, tone, bullets } }).catch(() => {});
   } catch {
     /* silent */
-  } finally {
-    setActionButtonsDisabled(false);
   }
 }
 
