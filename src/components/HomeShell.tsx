@@ -11,6 +11,8 @@ export default function HomeShell() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bananaTask =
+    "Open https://www.google.com and search for banana. Stop on the results page before clicking anything else.";
   const pharmacyTask =
     "Go to my pharmacy website and look for refill options. Trace the path to the refill, prescription status, or contact page, and stop before submitting anything.";
 
@@ -48,6 +50,10 @@ export default function HomeShell() {
     browserAreaRef.current?.runTask(pharmacyTask);
   };
 
+  const openBananaTest = () => {
+    browserAreaRef.current?.runTask(bananaTask);
+  };
+
   return (
     <div className="app-shell">
       <div className="home-stage">
@@ -66,11 +72,7 @@ export default function HomeShell() {
             currentUrl={currentUrl}
             currentPageTitle={currentPageTitle}
             onClose={closePanel}
-            onNavigateBanana={() => {
-              const bananaUrl = "https://www.google.com/search?igu=1&hl=en&q=banana";
-              setCurrentUrl(bananaUrl);
-              setCurrentPageTitle("banana - Google Search");
-            }}
+            onNavigateBanana={openBananaTest}
             onRunPharmacyTrace={runPharmacyTrace}
           />
         </div>

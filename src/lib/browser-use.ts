@@ -12,6 +12,20 @@ export interface BrowserTaskResult {
   error?: string;
 }
 
+type BrowserTaskStartResponse = {
+  task_id?: string;
+  detail?: string;
+};
+
+type BrowserTaskErrorResponse = {
+  detail?: string;
+  error?: string;
+};
+
+type BrowserExtractResponse = {
+  result?: string;
+};
+
 const BACKEND_URL = process.env.BROWSER_USE_BACKEND_URL ?? "http://localhost:8000";
 
 export async function runBrowserTask(
@@ -34,8 +48,8 @@ export async function runBrowserTask(
     if (!res.ok) {
       let detail = `HTTP ${res.status}`;
       try {
-        const err = await res.json();
-        detail = err.detail ?? detail;
+        const err = (await res.json()) as BrowserTaskErrorResponse;
+        detail = err.detail ?? err.error ?? detail;
       } catch {
         detail = (await res.text().catch(() => detail));
       }
@@ -43,7 +57,7 @@ export async function runBrowserTask(
       return { success: false, error: detail };
     }
 
-    const data = await res.json();
+    const data = (await res.json()) as BrowserTaskStartResponse;
     return { success: true, task_id: data.task_id };
   } catch (err) {
     logger.error("browser-use", "runBrowserTask threw", err);
@@ -68,7 +82,7 @@ export async function extractFromPage(task: string): Promise<string | null> {
       return null;
     }
 
-    const data = await res.json();
+    const data = (await res.json()) as BrowserExtractResponse;
     return data.result ?? null;
   } catch (err) {
     logger.error("browser-use", "extractFromPage threw", err);

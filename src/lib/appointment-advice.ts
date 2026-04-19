@@ -3,7 +3,7 @@ import type {
   AppointmentContext,
   UserContextEntry,
   UserProfileContext,
-} from "@/lib/response-schema";
+} from "./response-schema";
 
 export type AppointmentAdvice = {
   summary: string;

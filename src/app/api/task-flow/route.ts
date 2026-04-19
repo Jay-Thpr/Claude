@@ -1,10 +1,16 @@
-import { DEMO_USER_ID } from "@/lib/mock-context";
-import { getTaskFlow, updateTaskFlow } from "@/lib/memory-store";
-import { buildStageMessage, buildStageStateFromPlan, normalizeStagePlan } from "@/lib/task-flow";
-import type { TaskStage } from "@/lib/response-schema";
+import { DEMO_USER_ID } from "../../../lib/mock-context";
+import { getTaskFlow, updateTaskFlow } from "../../../lib/memory-store";
+import { buildStageMessage, buildStageStateFromPlan, normalizeStagePlan } from "../../../lib/task-flow";
+import type { TaskStage } from "../../../lib/response-schema";
+
+type TaskFlowDependencies = {
+  getTaskFlow?: typeof getTaskFlow;
+  updateTaskFlow?: typeof updateTaskFlow;
+};
 
 type TaskFlowRequest = {
   action?: "start" | "advance" | "pause" | "complete" | "reset";
+  user_id?: string;
   current_task?: string;
   task_goal?: string;
   task_type?: string;
@@ -17,7 +23,12 @@ type TaskFlowRequest = {
 };
 
 export async function GET() {
-  const flow = await getTaskFlow(DEMO_USER_ID);
+  return handleTaskFlowGetRequest();
+}
+
+export async function handleTaskFlowGetRequest(deps: TaskFlowDependencies = {}) {
+  const load = deps.getTaskFlow ?? getTaskFlow;
+  const flow = await load(DEMO_USER_ID);
 
   return Response.json({
     current_task: flow?.currentTask ?? null,
@@ -38,9 +49,19 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  return handleTaskFlowPostRequest(request);
+}
+
+export async function handleTaskFlowPostRequest(
+  request: Request,
+  deps: TaskFlowDependencies = {},
+) {
   try {
     const body = (await request.json()) as TaskFlowRequest;
-    const existing = await getTaskFlow(DEMO_USER_ID);
+    const userId = body.user_id?.trim() || DEMO_USER_ID;
+    const load = deps.getTaskFlow ?? getTaskFlow;
+    const save = deps.updateTaskFlow ?? updateTaskFlow;
+    const existing = await load(userId);
     const stagePlan = normalizeStagePlan(body.stage_plan ?? existing?.stagePlan ?? []);
     const hasPlan = stagePlan.length > 0;
     const existingIndex = existing?.currentStageIndex ?? 0;
@@ -78,7 +99,7 @@ export async function POST(request: Request) {
           ? "paused"
           : existing?.status || "active");
 
-    const saved = await updateTaskFlow(DEMO_USER_ID, {
+    const saved = await save(userId, {
       current_task: currentTask,
       task_goal: body.task_goal ?? existing?.taskGoal ?? null,
       task_type: body.task_type ?? existing?.taskType ?? null,

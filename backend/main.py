@@ -33,6 +33,8 @@ _state = {
 
 class TaskRequest(BaseModel):
     task: str
+    url: str | None = None
+    page_title: str | None = None
     headless: bool | None = None
 
 
@@ -63,7 +65,13 @@ async def start_agent(req: TaskRequest):
 
     async def _run():
         try:
-            await run_agent(req.task, _broadcast, headless=req.headless)
+            await run_agent(
+                req.task,
+                _broadcast,
+                headless=req.headless,
+                initial_url=req.url,
+                initial_page_title=req.page_title,
+            )
         except Exception as e:
             await _broadcast({"type": "error", "message": str(e)})
         finally:

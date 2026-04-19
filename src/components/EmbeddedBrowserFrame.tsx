@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 
 type BrowserStatus = "idle" | "running" | "paused" | "error";
@@ -7,6 +8,7 @@ type BrowserStatus = "idle" | "running" | "paused" | "error";
 interface EmbeddedBrowserFrameProps {
   currentUrl: string;
   pageTitle?: string;
+  screenshotB64?: string | null;
   status?: BrowserStatus;
 }
 
@@ -34,6 +36,7 @@ function normalizeFrameUrl(rawUrl: string) {
 export default function EmbeddedBrowserFrame({
   currentUrl,
   pageTitle,
+  screenshotB64 = null,
   status = "idle",
 }: EmbeddedBrowserFrameProps) {
   const frameUrl = normalizeFrameUrl(currentUrl);
@@ -49,13 +52,42 @@ export default function EmbeddedBrowserFrame({
           <span className="google-brand-wordmark">SafeStep</span>
         </Link>
 
-        <span className={`status-badge ${status === "running" ? "status-running" : status === "paused" ? "status-paused" : status === "error" ? "status-error" : "status-idle"}`}>
-          {status === "running" ? "Following steps" : status === "paused" ? "Paused" : status === "error" ? "Error" : "Ready"}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`status-badge ${
+              status === "running"
+                ? "status-running"
+                : status === "paused"
+                  ? "status-paused"
+                  : status === "error"
+                    ? "status-error"
+                    : "status-idle"
+            }`}
+          >
+            {status === "running"
+              ? "Following steps"
+              : status === "paused"
+                ? "Paused"
+                : status === "error"
+                  ? "Error"
+                  : "Ready"}
+          </span>
+        </div>
       </div>
 
       <div className="embedded-browser-frame-shell">
-        {frameUrl ? (
+        {screenshotB64 ? (
+          <div className="embedded-browser-screenshot-shell">
+            <Image
+              className="embedded-browser-screenshot"
+              src={`data:image/png;base64,${screenshotB64}`}
+              alt={frameLabel}
+              fill
+              unoptimized
+              sizes="(max-width: 768px) 100vw, 100vw"
+            />
+          </div>
+        ) : frameUrl ? (
           <iframe
             key={frameUrl}
             className="embedded-browser-frame"

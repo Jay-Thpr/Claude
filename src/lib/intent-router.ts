@@ -1,4 +1,4 @@
-import type { CopilotMode, CopilotRequest } from "@/lib/response-schema";
+import type { CopilotMode, CopilotRequest } from "./response-schema";
 
 const SCAM_HINTS = [
   "scam",

@@ -3,7 +3,7 @@ import type {
   TaskMemoryState,
   UserContextEntry,
   UserProfileContext,
-} from "@/lib/response-schema";
+} from "./response-schema";
 
 export const DEMO_USER_ID = "demo-user-001";
 

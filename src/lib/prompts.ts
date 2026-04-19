@@ -4,7 +4,7 @@ import type {
   TaskMemoryState,
   UserContextEntry,
   UserProfileContext,
-} from "@/lib/response-schema";
+} from "./response-schema";
 
 type PromptInput = {
   mode: CopilotMode;

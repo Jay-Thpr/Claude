@@ -8,28 +8,60 @@
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
+
   <header>
-    <h1 class="logo">SafeStep</h1>
+    <div class="logo-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    </div>
+    <span class="logo">SafeStep</span>
+    <span class="logo-sub">Your safety copilot</span>
   </header>
 
-  <nav class="tab-bar">
-    <button id="tab-appointments" class="tab active">Appointments</button>
-    <button id="tab-chat" class="tab">Chat</button>
+  <div id="alert-banner" class="alert-banner hidden" role="alert">
+    <div class="alert-icon" aria-hidden="true">⚠</div>
+    <div class="alert-body">
+      <div class="alert-title" id="alert-title"></div>
+      <ul class="alert-signals" id="alert-signals"></ul>
+      <button class="alert-details-btn" id="alert-details-btn">See full details →</button>
+    </div>
+  </div>
+
+  <nav class="tab-bar" role="tablist">
+    <button id="tab-appointments" class="tab active" role="tab" aria-selected="true" aria-controls="panel-appointments">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      Appointments
+    </button>
+    <button id="tab-chat" class="tab" role="tab" aria-selected="false" aria-controls="panel-chat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      Chat
+    </button>
   </nav>
 
-  <!-- Appointments panel -->
-  <div id="panel-appointments" class="panel">
-    <div id="state-loading" class="state" role="status">
-      <div class="spinner"></div>
+  <!-- Appointments Panel -->
+  <div id="panel-appointments" class="panel" role="tabpanel" aria-labelledby="tab-appointments">
+    <div id="state-loading" class="state" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
       <p class="loading-text">Getting your appointments…</p>
     </div>
 
     <div id="state-loaded" class="state hidden">
-      <p class="section-label">Your next appointment</p>
+      <p class="section-label">Next appointment</p>
       <div class="card">
         <p id="appt-summary" class="appt-title"></p>
-        <p id="appt-when" class="appt-when"></p>
-        <p id="appt-location" class="appt-location hidden"></p>
+        <p id="appt-when" class="appt-when">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <span id="appt-when-text"></span>
+        </p>
+        <p id="appt-location" class="appt-location hidden">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span id="appt-location-text"></span>
+        </p>
       </div>
       <div id="prep-block" class="prep hidden">
         <p class="section-label">To prepare</p>
@@ -47,33 +79,47 @@
     </div>
   </div>
 
-  <!-- Chat panel -->
-  <div id="panel-chat" class="panel hidden">
-    <!-- Quick action buttons -->
-    <div class="action-row">
-      <button class="action-btn" id="btn-safe" title="Is this safe?">
-        <span class="btn-icon">🛡️</span>
-        <span class="btn-label">Is this safe?</span>
+  <!-- Chat Panel -->
+  <div id="panel-chat" class="panel hidden" role="tabpanel" aria-labelledby="tab-chat">
+    <div id="chat-messages" class="chat-messages" aria-live="polite" aria-label="Chat messages"></div>
+
+    <!-- Quick Actions -->
+    <div class="action-row" role="group" aria-label="Quick actions">
+      <button class="action-btn" id="btn-safe" aria-label="Check if this page is safe">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Is this safe?
       </button>
-      <button class="action-btn" id="btn-next" title="What do I do next?">
-        <span class="btn-icon">👉</span>
-        <span class="btn-label">What's next?</span>
+      <button class="action-btn" id="btn-next" aria-label="Ask what to do next">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        What's next?
       </button>
-      <button class="action-btn" id="btn-memory" title="What was I doing?">
-        <span class="btn-icon">🧠</span>
-        <span class="btn-label">What was I doing?</span>
+      <button class="action-btn" id="btn-memory" aria-label="Ask what you were doing">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        What was I doing?
       </button>
-      <button class="action-btn" id="btn-show-content" title="Show page text">
-        <span class="btn-icon">📄</span>
-        <span class="btn-label">Page text</span>
+      <button class="action-btn" id="btn-show-content" aria-label="Show extracted page text">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Page text
       </button>
     </div>
 
-    <div id="chat-messages" class="chat-messages"></div>
-
+    <!-- Input -->
     <div class="chat-input-row">
-      <textarea id="chat-input" class="chat-input" placeholder="Ask me anything…" rows="1"></textarea>
-      <button id="chat-send" class="chat-send-btn" aria-label="Send">→</button>
+      <label for="chat-input" class="hidden">Ask a question</label>
+      <textarea id="chat-input" class="chat-input" placeholder="Ask me anything…" rows="1" aria-label="Chat input"></textarea>
+      <button id="chat-mic" class="chat-mic-btn" aria-label="Speak your question" title="Voice input">
+        <svg id="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </button>
+      <button id="chat-send" class="chat-send-btn" aria-label="Send message">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </button>
     </div>
   </div>
 

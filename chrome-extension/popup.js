@@ -5,16 +5,79 @@ const API_BASE = 'http://localhost:3000';
 let pageUrl = '';
 let pageTitle = '';
 let pageContent = '';
+let appointment = null;
 let taskMemory = null;
 let isSending = false;
+
+// ─── Voice output (TTS) ──────────────────────────────────────────────────────
+
+function speakText(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.88;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+  window.speechSynthesis.speak(utterance);
+}
+
+// ─── Voice input (STT) ───────────────────────────────────────────────────────
+
+let recognition = null;
+let isRecording = false;
+
+function initVoiceInput() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return;
+
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    const input = document.getElementById('chat-input');
+    input.value = transcript;
+    autoResize(input);
+    stopRecording();
+    sendMessage();
+  };
+
+  recognition.onerror = () => stopRecording();
+  recognition.onend = () => stopRecording();
+}
+
+function startRecording() {
+  if (!recognition || isRecording) return;
+  isRecording = true;
+  document.getElementById('chat-mic').classList.add('recording');
+  document.getElementById('chat-mic').setAttribute('aria-label', 'Stop recording');
+  recognition.start();
+}
+
+function stopRecording() {
+  isRecording = false;
+  const btn = document.getElementById('chat-mic');
+  if (btn) {
+    btn.classList.remove('recording');
+    btn.setAttribute('aria-label', 'Speak your question');
+  }
+  try { recognition?.stop(); } catch { /* already stopped */ }
+}
+
+function toggleRecording() {
+  if (isRecording) stopRecording();
+  else startRecording();
+}
 
 // ─── Tone detection ───────────────────────────────────────────────────────────
 
 function deriveTone(value) {
-  if (!value) return 'neutral';
-  if (/safe|ready|ok/i.test(value)) return 'safe';
-  if (/warning|careful|not sure/i.test(value)) return 'warning';
-  if (/risky|danger|stop/i.test(value)) return 'danger';
+  const v = (value || '').toLowerCase();
+  if (v === 'risky') return 'danger';
+  if (v === 'uncertain' || v === 'not-sure') return 'warning';
+  if (v === 'safe') return 'safe';
   return 'neutral';
 }
 
@@ -43,6 +106,7 @@ function renderAppointment(data) {
   document.getElementById('prep-block').classList.add('hidden');
 
   const appt = data.appointment;
+  appointment = appt || null;
   if (!appt || typeof appt !== 'object') {
     showState('state-empty');
     return;
@@ -51,11 +115,11 @@ function renderAppointment(data) {
   document.getElementById('appt-summary').textContent = appt.summary || 'Appointment';
 
   const when = [appt.whenLabel, appt.timeLabel].filter(Boolean).join(' at ');
-  document.getElementById('appt-when').textContent = when;
+  document.getElementById('appt-when-text').textContent = when;
 
   const locationEl = document.getElementById('appt-location');
   if (appt.location) {
-    locationEl.textContent = '📍 ' + appt.location;
+    document.getElementById('appt-location-text').textContent = appt.location;
     locationEl.classList.remove('hidden');
   }
 
@@ -94,7 +158,9 @@ function appendMessage(text, role, tone, bullets) {
   } else {
     el.className = 'msg msg-assistant';
     if (tone && tone !== 'neutral') el.dataset.tone = tone;
-    el.innerHTML = `<div class="msg-label">SafeStep</div><div>${escapeHtml(text)}</div>${bulletsHtml}`;
+    const speakerSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
+    el.innerHTML = `<div class="msg-label">SafeStep</div><div>${escapeHtml(text)}</div>${bulletsHtml}<button class="msg-speak-btn" aria-label="Read aloud">${speakerSvg} Read aloud</button>`;
+    el.querySelector('.msg-speak-btn').addEventListener('click', () => speakText(text));
   }
 
   const list = document.getElementById('chat-messages');
@@ -130,7 +196,7 @@ async function handleSafe() {
     const res = await fetch(`${API_BASE}/api/scam-check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: pageUrl, pageTitle, content: pageContent }),
+      body: JSON.stringify({ url: pageUrl, pageTitle, content: pageContent, visibleText: pageContent }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -157,13 +223,18 @@ async function handleNext() {
       body: JSON.stringify({
         url: pageUrl,
         pageTitle,
-        pageContent: pageContent || undefined,
+        visibleText: pageContent || undefined,
+        content: pageContent || undefined,
         question: 'What do I do next?',
         taskMemory: taskMemory || undefined,
+        appointment: appointment || undefined,
       }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    if (data.task_memory) {
+      taskMemory = data.task_memory;
+    }
     const tone = deriveTone(data.riskLevel);
     appendMessage(data.message || data.explanation || data.next_step || 'I am ready to help.', 'assistant', tone);
   } catch {
@@ -200,6 +271,42 @@ function handleShowContent() {
   appendMessage(pageContent || '(no page text captured)', 'assistant', 'neutral');
 }
 
+async function triggerPageModal({ tone, explanation, bullets }) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) {
+      chrome.tabs.sendMessage(tab.id, { type: 'SAFESTEP_ALERT', tone, explanation, bullets }).catch(() => {});
+    }
+  } catch { /* non-critical */ }
+}
+
+function showAlertBanner(tone, bullets) {
+  const banner = document.getElementById('alert-banner');
+  const title = document.getElementById('alert-title');
+  const signalsList = document.getElementById('alert-signals');
+
+  banner.className = `alert-banner tone-${tone}`;
+  title.textContent = tone === 'danger'
+    ? '🚨 This page looks dangerous — do not enter personal details'
+    : '⚠️ This page has warning signs — proceed carefully';
+
+  signalsList.innerHTML = '';
+  if (bullets && bullets.length) {
+    bullets.forEach(b => {
+      const li = document.createElement('li');
+      li.textContent = b;
+      signalsList.appendChild(li);
+    });
+  }
+
+  document.getElementById('alert-details-btn').onclick = () => switchTab('chat');
+
+  const spokenTitle = tone === 'danger'
+    ? 'Warning! This page looks dangerous. Do not enter any personal details.'
+    : 'Caution. This page has some warning signs. Please proceed carefully.';
+  speakText(spokenTitle);
+}
+
 async function autoAnalyzePage() {
   if (!pageContent && !pageUrl) return;
 
@@ -209,10 +316,14 @@ async function autoAnalyzePage() {
   if (cached[cacheKey]) {
     const { explanation, tone, bullets } = cached[cacheKey];
     appendMessage(explanation, 'assistant', tone, bullets);
+    if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
+    if (tone === 'danger') {
+      switchTab('chat');
+      triggerPageModal({ tone, explanation, bullets });
+    }
     return;
   }
 
-  setActionButtonsDisabled(true);
   try {
     const res = await fetch(`${API_BASE}/api/scam-check`, {
       method: 'POST',
@@ -226,11 +337,14 @@ async function autoAnalyzePage() {
       ? data.suspicious_signals : null;
     const explanation = data.explanation || 'I checked this page for you.';
     appendMessage(explanation, 'assistant', tone, bullets);
+    if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
+    if (tone === 'danger') {
+      switchTab('chat');
+      triggerPageModal({ tone, explanation, bullets });
+    }
     chrome.storage.session.set({ [cacheKey]: { explanation, tone, bullets } }).catch(() => {});
   } catch {
     /* silent */
-  } finally {
-    setActionButtonsDisabled(false);
   }
 }
 
@@ -250,10 +364,21 @@ async function sendMessage() {
     const res = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, url: pageUrl, pageTitle }),
+      body: JSON.stringify({
+        message: text,
+        url: pageUrl,
+        pageTitle,
+        visibleText: pageContent || undefined,
+        pageSummary: pageContent ? pageContent.slice(0, 500) : undefined,
+        taskMemory: taskMemory || undefined,
+        appointment: appointment || undefined,
+      }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    if (data.task_memory) {
+      taskMemory = data.task_memory;
+    }
     const tone = deriveTone(data.riskLevel);
     appendMessage(data.message || data.reply || 'I am here to help.', 'assistant', tone);
   } catch {
@@ -284,6 +409,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-next').addEventListener('click', handleNext);
   document.getElementById('btn-memory').addEventListener('click', handleMemory);
   document.getElementById('btn-show-content').addEventListener('click', handleShowContent);
+
+  // Voice
+  initVoiceInput();
+  document.getElementById('chat-mic').addEventListener('click', toggleRecording);
+  if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+    document.getElementById('chat-mic').disabled = true;
+    document.getElementById('chat-mic').title = 'Voice input not supported in this browser';
+  }
 
   // Chat input
   document.getElementById('chat-send').addEventListener('click', sendMessage);
@@ -319,9 +452,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load appointments
   showState('state-loading');
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  const timer = setTimeout(() => controller.abort(), 15000);
 
-  fetch(`${API_BASE}/api/appointments`, { signal: controller.signal })
+  fetch(`${API_BASE}/api/appointments?includeAdvice=false`, { signal: controller.signal })
     .then(res => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();

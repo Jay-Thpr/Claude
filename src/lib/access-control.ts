@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
-import { loadGoogleIdentityFromCookies, type GoogleIdentity } from "@/lib/google-account";
-import { createServerSupabaseClient, hasSupabaseConfig } from "@/lib/supabase-server";
+import { loadGoogleIdentityFromCookies, type GoogleIdentity } from "./google-account";
+import { createServerSupabaseClient, hasSupabaseConfig } from "./supabase-server";
 
 export type AppAccessState = {
   identity: GoogleIdentity | null;

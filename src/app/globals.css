@@ -827,6 +827,17 @@ body {
   background: white;
 }
 
+.embedded-browser-screenshot {
+  object-fit: contain;
+}
+
+.embedded-browser-screenshot-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: white;
+}
+
 .embedded-browser-placeholder {
   display: flex;
   height: 100%;

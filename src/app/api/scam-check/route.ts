@@ -1,10 +1,8 @@
-import { orchestrateCopilot } from "@/lib/orchestrator";
-import { logScamCheck } from "@/lib/scam-store";
-import { extractScamSignals, signalsToPromptContext } from "@/lib/scam-signals";
-import { sendSms } from "@/lib/twilio";
-import { logger } from "@/lib/logger";
-
-const DEMO_USER_ID = "demo-user-001";
+import { logScamCheck } from "../../../lib/scam-store";
+import { extractScamSignals, signalsToPromptContext } from "../../../lib/scam-signals";
+import { sendSms } from "../../../lib/twilio";
+import { logger } from "../../../lib/logger";
+import type { CopilotRequest, CopilotResponse } from "../../../lib/response-schema";
 
 export interface ScamCheckActions {
   blockOnRisky?: boolean;
@@ -26,7 +24,21 @@ export interface ScamCheckResponse {
   blocked: boolean;
 }
 
+type ScamCheckDependencies = {
+  orchestrateCopilot?: (input: CopilotRequest) => Promise<CopilotResponse>;
+  logScamCheck?: typeof logScamCheck;
+};
+
+const DEMO_USER_ID = "demo-user-001";
+
 export async function POST(request: Request): Promise<Response> {
+  return handleScamCheckRequest(request);
+}
+
+export async function handleScamCheckRequest(
+  request: Request,
+  deps: ScamCheckDependencies = {},
+): Promise<Response> {
   let body: ScamCheckRequest;
   try {
     body = (await request.json()) as ScamCheckRequest;
@@ -40,6 +52,8 @@ export async function POST(request: Request): Promise<Response> {
     const signals = url ? extractScamSignals(url, content || "") : null;
     const signalContext = signals ? signalsToPromptContext(signals) : null;
 
+    const orchestrateCopilot =
+      deps.orchestrateCopilot ?? (await import("../../../lib/orchestrator")).orchestrateCopilot;
     const response = await orchestrateCopilot({
       mode: "scam_check",
       query: content || question,
@@ -59,10 +73,10 @@ export async function POST(request: Request): Promise<Response> {
     const isRisky = classification === "risky";
     const blocked = isRisky && (actions?.blockOnRisky ?? false);
 
-    // Fire side effects in background — don't block the response
     void (async () => {
       try {
-        await logScamCheck({
+        const log = deps.logScamCheck ?? logScamCheck;
+        await log({
           user_id: DEMO_USER_ID,
           url: url ?? null,
           classification,

@@ -10,25 +10,29 @@ import { buildAppointmentReminder } from "@/lib/appointment-reminders";
 import { createAppointment } from "@/lib/google-calendar";
 import { logger } from "@/lib/logger";
 
-export async function GET() {
+function wantsAdvice(request: Request) {
+  const url = new URL(request.url);
+  return url.searchParams.get("includeAdvice") !== "false" && url.searchParams.get("light") !== "1";
+}
+
+export async function GET(request: Request) {
   const cookieStore = await cookies();
-  let snapshot: CalendarSnapshot = {
-    connected: false,
-    profile: null,
-    nextAppointment: null,
-    upcomingAppointments: [],
-    message: "Google Calendar is not connected yet.",
-    source: "none" as const,
-  };
-
-  try {
-    snapshot = await loadCalendarSnapshot(cookieStore);
-  } catch (err) {
-    console.error("Google Calendar snapshot error:", err);
-  }
-
-  const userContext = await loadUserContextFromCookies(cookieStore);
-  const userId = userContext.profile.userId || DEMO_USER_ID;
+  const includeAdvice = wantsAdvice(request);
+  const [snapshot, userContext] = await Promise.all([
+    loadCalendarSnapshot(cookieStore).catch((err) => {
+      console.error("Google Calendar snapshot error:", err);
+      return {
+        connected: false,
+        profile: null,
+        nextAppointment: null,
+        upcomingAppointments: [],
+        message: "Google Calendar is not connected yet.",
+        source: "none" as const,
+      } satisfies CalendarSnapshot;
+    }),
+    loadUserContextFromCookies(cookieStore),
+  ]);
+  const resolvedUserId = userContext.profile.userId || DEMO_USER_ID;
 
   if (snapshot.connected) {
     if (snapshot.nextAppointment) {
@@ -48,11 +52,13 @@ export async function GET() {
         profile: userContext.profile,
         entries: userContext.entries,
       });
-      const advice = await generateAppointmentAdvice({
-        appointment,
-        profile: userContext.profile,
-        entries: userContext.entries,
-      });
+      const advice = includeAdvice
+        ? await generateAppointmentAdvice({
+            appointment,
+            profile: userContext.profile,
+            entries: userContext.entries,
+          })
+        : null;
 
       return Response.json({
         message: reminder.message,
@@ -91,11 +97,13 @@ export async function GET() {
       profile: userContext.profile,
       entries: userContext.entries,
     });
-    const advice = await generateAppointmentAdvice({
-      appointment: DEMO_APPOINTMENT,
-      profile: userContext.profile,
-      entries: userContext.entries,
-    });
+    const advice = includeAdvice
+      ? await generateAppointmentAdvice({
+          appointment: DEMO_APPOINTMENT,
+          profile: userContext.profile,
+          entries: userContext.entries,
+        })
+      : null;
 
     return Response.json({
       message: reminder.message,
@@ -111,7 +119,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("appointments")
     .select("*")
-    .eq("user_id", userId)
+    .eq("user_id", resolvedUserId)
     .gte("start_time", new Date().toISOString())
     .order("start_time", { ascending: true })
     .limit(1)
@@ -120,11 +128,13 @@ export async function GET() {
   if (data && !error) {
     const appointment = buildAppointmentContextFromRow(data, { source: "supabase" });
 
-    const advice = await generateAppointmentAdvice({
-      appointment,
-      profile: userContext.profile,
-      entries: userContext.entries,
-    });
+    const advice = includeAdvice
+      ? await generateAppointmentAdvice({
+          appointment,
+          profile: userContext.profile,
+          entries: userContext.entries,
+        })
+      : null;
     const reminder = buildAppointmentReminder({
       appointment,
       profile: userContext.profile,
@@ -142,11 +152,13 @@ export async function GET() {
   }
 
   // Fallback to demo data -> This was inside origin/main but missed in the conflict block correctly above
-  const advice = await generateAppointmentAdvice({
-    appointment: DEMO_APPOINTMENT,
-    profile: userContext.profile,
-    entries: userContext.entries,
-  });
+  const advice = includeAdvice
+    ? await generateAppointmentAdvice({
+        appointment: DEMO_APPOINTMENT,
+        profile: userContext.profile,
+        entries: userContext.entries,
+      })
+    : null;
   const reminder = buildAppointmentReminder({
     appointment: DEMO_APPOINTMENT,
     profile: userContext.profile,
