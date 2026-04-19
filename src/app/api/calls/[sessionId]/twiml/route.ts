@@ -46,6 +46,16 @@ export async function POST(
 
   const mediaStreamUrl = process.env.TWILIO_MEDIA_STREAM_URL;
   const appBaseUrl = process.env.APP_BASE_URL;
+  if (mediaStreamUrl && !appBaseUrl) {
+    return new Response(
+      `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">SafeStep voice runtime is misconfigured. Application base URL is missing.</Say><Hangup/></Response>`,
+      {
+        status: 500,
+        headers: { "Content-Type": "text/xml; charset=utf-8" },
+      }
+    );
+  }
+
   if (mediaStreamUrl && appBaseUrl) {
     return new Response(
       buildProviderVoiceStreamTwiml({
@@ -56,6 +66,8 @@ export async function POST(
         patientName: session.patient_name,
         callGoal: session.call_goal,
         callbackNumber: session.callback_number,
+        appointmentContext: session.appointment_context,
+        constraints: session.constraints,
       }),
       {
         headers: { "Content-Type": "text/xml; charset=utf-8" },

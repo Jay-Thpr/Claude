@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import CopilotPanel from "@/components/CopilotPanel";
 import BrowserTaskArea, { type BrowserTaskAreaHandle } from "@/components/BrowserTaskArea";
 import GoogleSearchEmbed from "@/components/GoogleSearchEmbed";
+import TwilioCallPanel from "@/components/TwilioCallPanel";
 
 export default function HomeShell() {
   const browserAreaRef = useRef<BrowserTaskAreaHandle | null>(null);
@@ -80,6 +81,11 @@ export default function HomeShell() {
           />
         </div>
       )}
+
+      <TwilioCallPanel
+        currentUrl={currentUrl}
+        currentPageTitle={currentPageTitle}
+      />
 
       <button
         className="fab"
