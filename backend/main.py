@@ -15,7 +15,9 @@ app = FastAPI(title="SafeStep Browser Agent")
 # CORS for Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    # Allow any local Next.js dev port so the frontend can be restarted on a
+    # different port without breaking browser preflight requests.
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1):\d+$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

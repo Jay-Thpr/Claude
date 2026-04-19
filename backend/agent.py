@@ -71,7 +71,14 @@ async def extract_from_page(task: str) -> str:
     Run a browser-use agent for extraction tasks.
     Returns the agent's final text result.
     """
-    profile = BrowserProfile(headless=False)
+    if _IMPORT_ERROR is not None:
+        raise RuntimeError(
+            "browser-use is not installed in this environment, so the browser agent cannot run."
+        ) from _IMPORT_ERROR
+
+    llm = _build_llm()
+
+    profile = BrowserProfile(headless=_browser_headless())
     session = BrowserSession(browser_profile=profile)
 
     try:
