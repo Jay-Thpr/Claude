@@ -98,12 +98,15 @@ export function buildCopilotPrompt(input: PromptInput) {
     section("Prep notes", input.appointment?.prepNotes || null),
     "",
     "Writing rules:",
-    "- summary: one sentence.",
-    "- nextStep: the single safest next action.",
-    "- explanation: 2 to 3 short sentences.",
-    "- riskLevel: match the seriousness of the page.",
-    "- suspiciousSignals: list only concrete signals you can justify.",
+    "- summary: one sentence describing what this page is and whether it seems safe.",
+    "- nextStep: the single safest next action for the user.",
+    "- explanation: 2 to 3 short sentences. Be specific — name actual words, phrases, or features you see on the page. Do not give generic advice.",
+    "- riskLevel: safe if the page seems legitimate, uncertain if anything is odd, risky if it pressures the user or asks for sensitive info.",
+    "- suspiciousSignals: quote specific words or phrases from the page that seem pressuring, unusual, or risky. Include notable features (login forms, payment fields, countdown timers, prize claims). If the page seems safe, still list 1-2 notable features you observe. Never leave this array empty.",
     "- memoryUpdate: include a currentTask and lastStep when useful.",
+    input.mode === "scam_check"
+      ? "\nIMPORTANT for scam_check: Read the visible text carefully. Your response must reference actual content from the page. Do not give a generic answer. If the page is safe, say what makes it look legitimate. If it is risky, quote the specific words that concern you."
+      : "",
   ]
     .filter(Boolean)
     .join("\n");
