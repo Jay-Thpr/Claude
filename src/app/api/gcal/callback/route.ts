@@ -77,7 +77,9 @@ export async function GET(request: Request) {
           upsertResult.error &&
           /login_completed_at|column .* does not exist/i.test(upsertResult.error.message || "")
         ) {
-          const fallbackRow = { ...baseRow };
+          const fallbackRow: Omit<typeof baseRow, "login_completed_at"> & {
+            login_completed_at?: string;
+          } = { ...baseRow };
           delete fallbackRow.login_completed_at;
           upsertResult = await supabase.from("user_profiles").upsert(fallbackRow, {
             onConflict: "user_id",

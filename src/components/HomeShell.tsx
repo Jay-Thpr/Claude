@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import CopilotPanel from "@/components/CopilotPanel";
 import BrowserTaskArea, { type BrowserTaskAreaHandle } from "@/components/BrowserTaskArea";
-import GoogleSearchEmbed from "@/components/GoogleSearchEmbed";
+import CopilotPanel from "@/components/CopilotPanel";
 
 export default function HomeShell() {
   const browserAreaRef = useRef<BrowserTaskAreaHandle | null>(null);
@@ -52,22 +51,13 @@ export default function HomeShell() {
   return (
     <div className="app-shell">
       <div className="home-stage">
-        <GoogleSearchEmbed />
-
-        <div className="home-browser-wrap">
-          <BrowserTaskArea
-            ref={browserAreaRef}
-            onUrlChange={setCurrentUrl}
-            onPageTitleChange={setCurrentPageTitle}
-            panelTitle="Embedded Browser Trace"
-            panelCopy="The pharmacy trace runs right here on the main page. Use the popup launcher to start it."
-            examplePrompts={[
-              "Go to my pharmacy website and look for refill options",
-              "Search the pharmacy site for prescription status",
-              "Find the contact or help page for the pharmacy",
-            ]}
-          />
-        </div>
+        <BrowserTaskArea
+          ref={browserAreaRef}
+          currentUrl={currentUrl}
+          currentPageTitle={currentPageTitle}
+          onUrlChange={setCurrentUrl}
+          onPageTitleChange={setCurrentPageTitle}
+        />
       </div>
 
       {panelOpen && (
@@ -76,6 +66,11 @@ export default function HomeShell() {
             currentUrl={currentUrl}
             currentPageTitle={currentPageTitle}
             onClose={closePanel}
+            onNavigateBanana={() => {
+              const bananaUrl = "https://www.google.com/search?igu=1&hl=en&q=banana";
+              setCurrentUrl(bananaUrl);
+              setCurrentPageTitle("banana - Google Search");
+            }}
             onRunPharmacyTrace={runPharmacyTrace}
           />
         </div>

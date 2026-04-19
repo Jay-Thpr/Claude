@@ -33,6 +33,7 @@ _state = {
 
 class TaskRequest(BaseModel):
     task: str
+    headless: bool | None = None
 
 
 async def _broadcast(event: dict) -> None:
@@ -62,7 +63,7 @@ async def start_agent(req: TaskRequest):
 
     async def _run():
         try:
-            await run_agent(req.task, _broadcast)
+            await run_agent(req.task, _broadcast, headless=req.headless)
         except Exception as e:
             await _broadcast({"type": "error", "message": str(e)})
         finally:

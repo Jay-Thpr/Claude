@@ -70,12 +70,15 @@ def _build_llm() -> ChatGoogle:
     )
 
 
-def _browser_headless() -> bool:
+def _browser_headless(force_headless: bool | None = None) -> bool:
+    if force_headless is not None:
+        return force_headless
+
     value = os.environ.get("BROWSER_USE_HEADLESS", "false").strip().lower()
     return value in {"1", "true", "yes", "on"}
 
 
-async def extract_from_page(task: str) -> str:
+async def extract_from_page(task: str, headless: bool | None = None) -> str:
     """
     Run a browser-use agent for extraction tasks.
     Returns the extracted text result from the current page.
@@ -87,7 +90,7 @@ async def extract_from_page(task: str) -> str:
 
     llm = _build_llm()
 
-    profile = BrowserProfile(headless=_browser_headless())
+    profile = BrowserProfile(headless=_browser_headless(headless))
     session = BrowserSession(browser_profile=profile)
 
     class ExtractionResponse(BaseModel):
@@ -115,7 +118,11 @@ async def extract_from_page(task: str) -> str:
             pass
 
 
-async def run_agent(task: str, emit: Callable[[dict], Awaitable[None]]) -> None:
+async def run_agent(
+    task: str,
+    emit: Callable[[dict], Awaitable[None]],
+    headless: bool | None = None,
+) -> None:
     """
     Run a browser-use agent for the given task.
     Emits step events via the emit callback for SSE streaming.
@@ -127,10 +134,23 @@ async def run_agent(task: str, emit: Callable[[dict], Awaitable[None]]) -> None:
 
     llm = _build_llm()
 
-    profile = BrowserProfile(headless=_browser_headless())
+    profile = BrowserProfile(headless=_browser_headless(headless))
     session = BrowserSession(browser_profile=profile)
 
     step_count = 0
+
+    async def capture_page_state() -> tuple[str | None, str | None]:
+        try:
+            current_url = await session.get_current_page_url()
+        except Exception:
+            current_url = None
+
+        try:
+            current_page_title = await session.get_current_page_title()
+        except Exception:
+            current_page_title = None
+
+        return current_url, current_page_title
 
     async def on_step_end(agent_instance: Agent) -> None:
         nonlocal step_count
@@ -175,12 +195,15 @@ async def run_agent(task: str, emit: Callable[[dict], Awaitable[None]]) -> None:
 
         step_count += 1
         action_str = "; ".join(actions_desc) if actions_desc else None
+        current_url, current_page_title = await capture_page_state()
 
         await emit({
             "type": "step",
             "step": step_count,
             "thought": thought,
             "action": action_str,
+            "current_url": current_url,
+            "current_page_title": current_page_title,
         })
 
         # Submit guard

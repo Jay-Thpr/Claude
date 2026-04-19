@@ -16,7 +16,8 @@ const BACKEND_URL = process.env.BROWSER_USE_BACKEND_URL ?? "http://localhost:800
 
 export async function runBrowserTask(
   goal: string,
-  context?: PageContext
+  context?: PageContext,
+  options?: { headless?: boolean }
 ): Promise<BrowserTaskResult> {
   try {
     const res = await fetch(`${BACKEND_URL}/api/start`, {
@@ -26,6 +27,7 @@ export async function runBrowserTask(
         task: goal,
         url: context?.url,
         page_title: context?.title,
+        headless: options?.headless ?? true,
       }),
     });
 

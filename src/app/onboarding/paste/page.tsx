@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
-import BasicInfoForm from "@/components/BasicInfoForm";
+import OnboardingPasteForm from "@/components/OnboardingPasteForm";
 import { loadAppAccessState } from "@/lib/access-control";
 
-export default async function BasicInfoPage() {
+export default async function PasteOnboardingPage() {
   const access = await loadAppAccessState();
 
   if (!access.identity) {
     redirect("/login");
   }
 
-  return <BasicInfoForm />;
+  return <OnboardingPasteForm />;
 }

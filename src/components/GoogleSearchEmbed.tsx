@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 function buildGoogleSearchUrl(query: string) {
@@ -7,26 +8,37 @@ function buildGoogleSearchUrl(query: string) {
   return `https://www.google.com/search?igu=1&hl=en&q=${encodeURIComponent(trimmed)}`;
 }
 
-export default function GoogleSearchEmbed() {
+interface GoogleSearchEmbedProps {
+  currentUrl?: string | null;
+  onNavigate?: (url: string) => void;
+}
+
+export default function GoogleSearchEmbed({
+  currentUrl = null,
+  onNavigate,
+}: GoogleSearchEmbedProps) {
   const [draftQuery, setDraftQuery] = useState("SafeStep");
   const [searchQuery, setSearchQuery] = useState("SafeStep");
 
-  const searchUrl = buildGoogleSearchUrl(searchQuery);
+  const searchUrl = currentUrl || buildGoogleSearchUrl(searchQuery);
 
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSearchQuery(draftQuery.trim() || "SafeStep");
+    const nextQuery = draftQuery.trim() || "SafeStep";
+    const nextUrl = buildGoogleSearchUrl(nextQuery);
+    setSearchQuery(nextQuery);
+    onNavigate?.(nextUrl);
   };
 
   return (
     <section className="google-search-shell">
       <div className="google-search-header">
-        <div className="google-brand" aria-label="SafeStep">
+        <Link href="/navigate" className="google-brand" aria-label="Open SafeStep navigation">
           <span className="google-brand-mark" aria-hidden="true">
             S
           </span>
           <span className="google-brand-wordmark">SafeStep</span>
-        </div>
+        </Link>
 
         <form className="google-search-form" onSubmit={submitSearch}>
           <label className="sr-only" htmlFor="google-search-input">
