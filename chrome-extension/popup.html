@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
   <title>SafeStep</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
@@ -11,7 +12,12 @@
     <h1 class="logo">SafeStep</h1>
   </header>
 
-  <main>
+  <nav class="tab-bar">
+    <button id="tab-appointments" class="tab active">Appointments</button>
+    <button id="tab-chat" class="tab">Chat</button>
+  </nav>
+
+  <div id="panel-appointments" class="panel">
     <!-- Loading state -->
     <div id="state-loading" class="state" role="status">
       <p class="loading-text">Getting your appointments…</p>
@@ -36,7 +42,15 @@
       <p class="error-text">Could not load appointments.</p>
       <p class="error-sub">Make sure the app is running at localhost:3000.</p>
     </div>
-  </main>
+  </div>
+
+  <div id="panel-chat" class="panel hidden">
+    <div id="chat-messages" class="chat-messages"></div>
+    <div class="chat-input-row">
+      <textarea id="chat-input" class="chat-input" placeholder="Ask me anything…" rows="1"></textarea>
+      <button id="chat-send" class="chat-send-btn">Send</button>
+    </div>
+  </div>
 
   <script src="popup.js"></script>
 </body>
