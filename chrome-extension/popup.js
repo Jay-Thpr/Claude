@@ -51,11 +51,11 @@ function renderAppointment(data) {
   document.getElementById('appt-summary').textContent = appt.summary || 'Appointment';
 
   const when = [appt.whenLabel, appt.timeLabel].filter(Boolean).join(' at ');
-  document.getElementById('appt-when').textContent = when;
+  document.getElementById('appt-when-text').textContent = when;
 
   const locationEl = document.getElementById('appt-location');
   if (appt.location) {
-    locationEl.textContent = '📍 ' + appt.location;
+    document.getElementById('appt-location-text').textContent = appt.location;
     locationEl.classList.remove('hidden');
   }
 
