@@ -200,6 +200,28 @@ function handleShowContent() {
   appendMessage(pageContent || '(no page text captured)', 'assistant', 'neutral');
 }
 
+function showAlertBanner(tone, bullets) {
+  const banner = document.getElementById('alert-banner');
+  const title = document.getElementById('alert-title');
+  const signalsList = document.getElementById('alert-signals');
+
+  banner.className = `alert-banner tone-${tone}`;
+  title.textContent = tone === 'danger'
+    ? '🚨 This page looks dangerous — do not enter personal details'
+    : '⚠️ This page has warning signs — proceed carefully';
+
+  signalsList.innerHTML = '';
+  if (bullets && bullets.length) {
+    bullets.forEach(b => {
+      const li = document.createElement('li');
+      li.textContent = b;
+      signalsList.appendChild(li);
+    });
+  }
+
+  document.getElementById('alert-details-btn').onclick = () => switchTab('chat');
+}
+
 async function autoAnalyzePage() {
   if (!pageContent && !pageUrl) return;
 
@@ -209,10 +231,8 @@ async function autoAnalyzePage() {
   if (cached[cacheKey]) {
     const { explanation, tone, bullets } = cached[cacheKey];
     appendMessage(explanation, 'assistant', tone, bullets);
-    if (tone === 'danger') {
-      document.getElementById('danger-banner').classList.remove('hidden');
-      switchTab('chat');
-    }
+    if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
+    if (tone === 'danger') switchTab('chat');
     return;
   }
 
@@ -230,10 +250,8 @@ async function autoAnalyzePage() {
       ? data.suspicious_signals : null;
     const explanation = data.explanation || 'I checked this page for you.';
     appendMessage(explanation, 'assistant', tone, bullets);
-    if (tone === 'danger') {
-      document.getElementById('danger-banner').classList.remove('hidden');
-      switchTab('chat');
-    }
+    if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
+    if (tone === 'danger') switchTab('chat');
     chrome.storage.session.set({ [cacheKey]: { explanation, tone, bullets } }).catch(() => {});
   } catch {
     /* silent */

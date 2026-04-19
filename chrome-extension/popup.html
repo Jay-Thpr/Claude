@@ -12,8 +12,13 @@
     <h1 class="logo">SafeStep</h1>
   </header>
 
-  <div id="danger-banner" class="danger-banner hidden">
-    ⚠️ <strong>Warning:</strong> This page may be unsafe. See Chat for details.
+  <div id="alert-banner" class="alert-banner hidden">
+    <div class="alert-icon">⚠️</div>
+    <div class="alert-body">
+      <div class="alert-title" id="alert-title">This page may not be safe</div>
+      <ul class="alert-signals" id="alert-signals"></ul>
+      <button class="alert-details-btn" id="alert-details-btn">See full details →</button>
+    </div>
   </div>
 
   <nav class="tab-bar">
