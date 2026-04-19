@@ -17,13 +17,13 @@
     <button id="tab-chat" class="tab">Chat</button>
   </nav>
 
+  <!-- Appointments panel -->
   <div id="panel-appointments" class="panel">
-    <!-- Loading state -->
     <div id="state-loading" class="state" role="status">
+      <div class="spinner"></div>
       <p class="loading-text">Getting your appointments…</p>
     </div>
 
-    <!-- Appointment card state -->
     <div id="state-loaded" class="state hidden">
       <p class="section-label">Your next appointment</p>
       <div class="card">
@@ -37,18 +37,43 @@
       </div>
     </div>
 
-    <!-- Error state -->
+    <div id="state-empty" class="state hidden">
+      <p class="empty-text">No upcoming appointments found.</p>
+    </div>
+
     <div id="state-error" class="state hidden">
       <p class="error-text">Could not load appointments.</p>
       <p class="error-sub">Make sure the app is running at localhost:3000.</p>
     </div>
   </div>
 
+  <!-- Chat panel -->
   <div id="panel-chat" class="panel hidden">
+    <!-- Quick action buttons -->
+    <div class="action-row">
+      <button class="action-btn" id="btn-safe" title="Is this safe?">
+        <span class="btn-icon">🛡️</span>
+        <span class="btn-label">Is this safe?</span>
+      </button>
+      <button class="action-btn" id="btn-next" title="What do I do next?">
+        <span class="btn-icon">👉</span>
+        <span class="btn-label">What's next?</span>
+      </button>
+      <button class="action-btn" id="btn-memory" title="What was I doing?">
+        <span class="btn-icon">🧠</span>
+        <span class="btn-label">What was I doing?</span>
+      </button>
+      <button class="action-btn" id="btn-repeat" title="Say that again">
+        <span class="btn-icon">🔄</span>
+        <span class="btn-label">Repeat</span>
+      </button>
+    </div>
+
     <div id="chat-messages" class="chat-messages"></div>
+
     <div class="chat-input-row">
       <textarea id="chat-input" class="chat-input" placeholder="Ask me anything…" rows="1"></textarea>
-      <button id="chat-send" class="chat-send-btn">Send</button>
+      <button id="chat-send" class="chat-send-btn" aria-label="Send">→</button>
     </div>
   </div>
 
