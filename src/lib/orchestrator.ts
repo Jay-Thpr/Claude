@@ -21,7 +21,7 @@ import {
   fallbackSafetyResponse,
 } from "@/lib/safety-rules";
 import { buildCopilotPrompt } from "@/lib/prompts";
-import { loadUserContext, summarizeUserContext } from "@/lib/user-context";
+import { loadUserContextFromCookies, summarizeUserContext } from "@/lib/user-context";
 
 type CopilotContext = {
   userProfile: UserProfileContext;
@@ -109,10 +109,6 @@ async function loadStoredAppointment(
   return fallback;
 }
 
-async function loadStoredUserContext(userId = DEMO_USER_ID) {
-  return loadUserContext(userId);
-}
-
 function safeParseJson<T>(text: string): T | null {
   try {
     const match = text.match(/\{[\s\S]*\}/);
@@ -182,7 +178,7 @@ export async function orchestrateCopilot(input: CopilotRequest): Promise<Copilot
         entries: input.userContextEntries || [],
         source: "request" as const,
       }
-    : await loadStoredUserContext();
+    : await loadUserContextFromCookies(cookieStore);
   const context = buildContext(
     input,
     taskMemory,

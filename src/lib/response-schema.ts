@@ -38,6 +38,8 @@ export type AppointmentContext = {
 
 export type UserProfileContext = {
   userId: string;
+  googleEmail?: string | null;
+  googleName?: string | null;
   name: string;
   email?: string | null;
   timezone?: string | null;
@@ -47,6 +49,9 @@ export type UserProfileContext = {
   preferences: string[];
   conditions: string[];
   notes?: string | null;
+  rawIntakeText?: string | null;
+  onboardingSummary?: string | null;
+  onboardingCompletedAt?: string | null;
 };
 
 export type UserContextEntry = {

@@ -9,6 +9,8 @@ export const DEMO_USER_ID = "demo-user-001";
 
 export const DEMO_USER_PROFILE: UserProfileContext = {
   userId: DEMO_USER_ID,
+  googleEmail: "maria.garcia@example.com",
+  googleName: "Maria Garcia",
   name: "Maria Garcia",
   email: "maria.garcia@example.com",
   timezone: "America/Los_Angeles",
@@ -30,6 +32,9 @@ export const DEMO_USER_PROFILE: UserProfileContext = {
   ],
   notes:
     "Prefers calm, direct wording and should be warned before submitting forms or payment details.",
+  rawIntakeText: "Demo intake text for the hackathon prototype.",
+  onboardingSummary: "Demo user seeded from the sample intake flow.",
+  onboardingCompletedAt: new Date().toISOString(),
 };
 
 export const DEMO_USER_CONTEXT_ENTRIES: UserContextEntry[] = [

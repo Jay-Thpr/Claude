@@ -23,6 +23,13 @@ type LoadedAppointment = {
   message?: string;
 };
 
+type AppointmentPrepAdvice = {
+  summary: string;
+  preparationActions: string[];
+  thingsToWatch: string[];
+  questionsToAsk: string[];
+};
+
 type LoadedUserContext = {
   profile: UserProfileContext | null;
   entries: UserContextEntry[];
@@ -68,8 +75,12 @@ export default function SafeStepPrototype() {
   const [loading, setLoading] = useState(false);
   const [memory, setMemory] = useState<TaskMemoryState | null>(null);
   const [appointment, setAppointment] = useState<LoadedAppointment | null>(null);
+  const [appointmentAdvice, setAppointmentAdvice] = useState<AppointmentPrepAdvice | null>(null);
   const [userContext, setUserContext] = useState<LoadedUserContext | null>(null);
   const [loadingContext, setLoadingContext] = useState(true);
+  const [onboardingText, setOnboardingText] = useState("");
+  const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [onboardingMessage, setOnboardingMessage] = useState<string | null>(null);
 
   const activePage = PAGE_BY_ID[activePageId];
   const browserMemory = useMemo(() => buildTaskMemory(activePage, memory?.currentTask || undefined), [activePage, memory?.currentTask]);
@@ -92,6 +103,7 @@ export default function SafeStepPrototype() {
           message?: string;
           connected?: boolean;
           source?: string;
+          prep_advice?: AppointmentPrepAdvice | null;
         };
         const userContextData = (await userContextRes.json()) as LoadedUserContext;
 
@@ -107,6 +119,7 @@ export default function SafeStepPrototype() {
             source: appointmentPayload.source,
           },
         );
+        setAppointmentAdvice(appointmentPayload.prep_advice || null);
         setUserContext(userContextData);
       } catch {
         if (!cancelled) {
@@ -124,6 +137,19 @@ export default function SafeStepPrototype() {
             location: "UCSD Medical Center",
             description: "Bring medication list and insurance card.",
             source: "demo",
+          });
+          setAppointmentAdvice({
+            summary: "Prepare for the cardiology follow-up with a simple checklist.",
+            preparationActions: [
+              "Bring your medication list and insurance card.",
+              "Write down any new symptoms before the visit.",
+            ],
+            thingsToWatch: [
+              "Pause if a page asks for payment or personal details unrelated to the visit.",
+            ],
+            questionsToAsk: [
+              "What should I do after this appointment?",
+            ],
           });
           setUserContext({
             profile: null,
@@ -220,6 +246,50 @@ export default function SafeStepPrototype() {
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOnboardingSubmit = async () => {
+    if (!onboardingText.trim()) {
+      setOnboardingMessage("Paste a short summary of your medical history first.");
+      return;
+    }
+
+    setOnboardingLoading(true);
+    setOnboardingMessage(null);
+
+    try {
+      const res = await fetch("/api/onboarding/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intakeText: onboardingText }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to save your information.");
+      }
+
+      setOnboardingMessage("Your profile has been saved.");
+      setOnboardingText("");
+
+      const userContextRes = await fetch("/api/user-context");
+      const userContextData = (await userContextRes.json()) as LoadedUserContext;
+      setUserContext(userContextData);
+
+      const appointmentRes = await fetch("/api/appointments");
+      const appointmentData = (await appointmentRes.json()) as {
+        appointment?: LoadedAppointment | null;
+        prep_advice?: AppointmentPrepAdvice | null;
+      };
+      setAppointment(appointmentData.appointment || null);
+      setAppointmentAdvice(appointmentData.prep_advice || null);
+    } catch (error) {
+      setOnboardingMessage(
+        error instanceof Error ? error.message : "Unable to save your profile right now.",
+      );
+    } finally {
+      setOnboardingLoading(false);
     }
   };
 
@@ -396,6 +466,49 @@ export default function SafeStepPrototype() {
                         </p>
                       </div>
                     </div>
+
+                    {appointmentAdvice ? (
+                      <div className="mt-5 rounded-[22px] border border-primary-100 bg-primary-50 p-5">
+                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary-700">
+                          Prep plan
+                        </p>
+                        <p className="mt-2 text-lg font-semibold text-text-primary">
+                          {appointmentAdvice.summary}
+                        </p>
+                        <div className="mt-4 grid gap-4 md:grid-cols-3">
+                          <div className="rounded-2xl bg-white p-4 shadow-sm">
+                            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
+                              Prepare
+                            </p>
+                            <ul className="mt-2 space-y-2 text-base text-text-secondary">
+                              {appointmentAdvice.preparationActions.map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div className="rounded-2xl bg-white p-4 shadow-sm">
+                            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
+                              Watch for
+                            </p>
+                            <ul className="mt-2 space-y-2 text-base text-text-secondary">
+                              {appointmentAdvice.thingsToWatch.map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div className="rounded-2xl bg-white p-4 shadow-sm">
+                            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
+                              Ask
+                            </p>
+                            <ul className="mt-2 space-y-2 text-base text-text-secondary">
+                              {appointmentAdvice.questionsToAsk.map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </section>
                 </div>
               </main>
@@ -428,6 +541,31 @@ export default function SafeStepPrototype() {
                     </p>
                   </div>
 
+                  <div className="rounded-[22px] border border-surface-200 bg-[#fcfbf8] p-4">
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Tell SafeStep about you
+                    </p>
+                    <p className="mt-2 text-base text-text-secondary">
+                      Paste a short summary of your medical history, medications, and anything you want SafeStep to remember.
+                    </p>
+                    <textarea
+                      value={onboardingText}
+                      onChange={(event) => setOnboardingText(event.target.value)}
+                      placeholder="Example: I have a cardiology follow-up tomorrow. I take blood pressure medicine and need reminders about steps..."
+                      className="mt-3 min-h-32 w-full rounded-2xl border border-surface-200 bg-white px-4 py-3 text-base text-text-primary outline-none transition focus:border-primary-400"
+                    />
+                    <button
+                      onClick={() => void handleOnboardingSubmit()}
+                      disabled={onboardingLoading}
+                      className="mt-3 w-full rounded-2xl bg-primary-500 px-4 py-3 text-base font-semibold text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {onboardingLoading ? "Saving..." : "Save my profile"}
+                    </button>
+                    {onboardingMessage ? (
+                      <p className="mt-2 text-sm text-text-secondary">{onboardingMessage}</p>
+                    ) : null}
+                  </div>
+
                   <div className="rounded-[22px] border border-surface-200 bg-white p-4">
                     <p className="text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
                       User profile
@@ -449,6 +587,11 @@ export default function SafeStepPrototype() {
                           </span>
                         ))}
                       </div>
+                    ) : null}
+                    {userContext?.profile?.onboardingSummary ? (
+                      <p className="mt-3 text-sm text-text-secondary">
+                        {userContext.profile.onboardingSummary}
+                      </p>
                     ) : null}
                   </div>
 
@@ -548,7 +691,7 @@ export default function SafeStepPrototype() {
 
       <div className="fixed bottom-5 right-5 z-20">
         {assistantOpen ? (
-          <div className="w-[min(92vw,390px)] overflow-hidden rounded-[28px] border border-surface-200 bg-white shadow-[0_24px_64px_rgba(30,26,23,0.18)]">
+          <div className="flex max-h-[min(600px,calc(100vh-120px))] w-[min(92vw,390px)] flex-col overflow-hidden rounded-[28px] border border-surface-200 bg-white shadow-[0_24px_64px_rgba(30,26,23,0.18)]">
             <div className="flex items-center justify-between gap-3 border-b border-surface-200 bg-gradient-to-r from-white via-[#fdfaf3] to-[#f4ede2] px-4 py-3">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
@@ -571,7 +714,7 @@ export default function SafeStepPrototype() {
                 Close
               </button>
             </div>
-            <div className="space-y-3 p-4">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
               <p className="text-base text-text-secondary">
                 {loading
                   ? "Thinking carefully..."

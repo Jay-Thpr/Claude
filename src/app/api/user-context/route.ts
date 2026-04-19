@@ -1,9 +1,10 @@
-import { DEMO_USER_ID } from "@/lib/mock-context";
-import { loadUserContext } from "@/lib/user-context";
+import { cookies } from "next/headers";
+import { loadUserContextFromCookies } from "@/lib/user-context";
 
 export async function GET() {
   try {
-    const context = await loadUserContext(DEMO_USER_ID);
+    const cookieStore = await cookies();
+    const context = await loadUserContextFromCookies(cookieStore);
     return Response.json(context);
   } catch (error) {
     console.error("User context error:", error);

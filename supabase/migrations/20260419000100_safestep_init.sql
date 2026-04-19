@@ -2,6 +2,8 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.user_profiles (
   user_id text primary key,
+  google_email text unique,
+  google_name text,
   name text not null,
   email text,
   timezone text default 'America/Los_Angeles',
@@ -11,9 +13,19 @@ create table if not exists public.user_profiles (
   preferences text[] not null default '{}'::text[],
   conditions text[] not null default '{}'::text[],
   notes text,
+  raw_intake_text text,
+  onboarding_summary text,
+  onboarding_completed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.user_profiles
+  add column if not exists google_email text unique,
+  add column if not exists google_name text,
+  add column if not exists raw_intake_text text,
+  add column if not exists onboarding_summary text,
+  add column if not exists onboarding_completed_at timestamptz;
 
 create table if not exists public.user_context_entries (
   id uuid primary key default gen_random_uuid(),

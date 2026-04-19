@@ -251,7 +251,7 @@ export default function CopilotPanel({
   };
 
   return (
-    <div className="flex flex-col h-full" id="copilot-panel">
+    <div className="flex h-full min-h-0 flex-col" id="copilot-panel">
       {/* Panel header */}
       <div className="panel-header">
         <div className="flex items-center gap-2">
@@ -267,233 +267,235 @@ export default function CopilotPanel({
         </button>
       </div>
 
-      {/* Calendar connection */}
-      <div className="panel-section bg-surface-50">
-        <div className="rounded-2xl border border-surface-200 bg-white p-4">
-          <div className="flex items-start justify-between gap-3 mb-3">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-text-muted">
-                Google Calendar
-              </p>
-              <h3 className="text-lg font-bold text-text-primary">
-                {calendarStatus?.connected ? "Connected" : "Not connected"}
-              </h3>
-            </div>
-            <span
-              className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                calendarStatus?.connected
-                  ? "bg-safe/10 text-safe"
-                  : "bg-warning/10 text-warning"
-              }`}
-            >
-              {calendarLoading
-                ? "Checking..."
-                : calendarStatus?.connected
-                  ? "Ready"
-                  : "Disconnected"}
-            </span>
-          </div>
-
-          <p className="text-base text-text-secondary leading-relaxed">
-            {calendarStatus?.message ||
-              "Connect Google Calendar so SafeStep can mention your next appointment while helping you browse."}
-          </p>
-
-          {calendarStatus?.connected && calendarStatus.nextAppointment ? (
-            <div className="mt-3 rounded-xl bg-surface-50 p-3 border border-surface-200">
-              <p className="text-sm font-semibold text-text-muted uppercase tracking-wide mb-1">
-                Next event
-              </p>
-              <p className="text-base font-medium text-text-primary">
-                {calendarStatus.nextAppointment.summary}
-              </p>
-              <p className="text-sm text-text-secondary">
-                {calendarStatus.nextAppointment.whenLabel}
-                {calendarStatus.nextAppointment.timeLabel
-                  ? ` at ${calendarStatus.nextAppointment.timeLabel}`
-                  : ""}
-                {calendarStatus.nextAppointment.location
-                  ? ` · ${calendarStatus.nextAppointment.location}`
-                  : ""}
-              </p>
-            </div>
-          ) : null}
-
-          <div className="mt-4 flex gap-2">
-            {calendarStatus?.connected ? (
-              <button
-                onClick={handleCalendarDisconnect}
-                disabled={calendarLoading}
-                className="flex-1 px-4 py-3 rounded-xl border-2 border-surface-200 text-text-primary font-semibold hover:border-danger hover:text-danger transition-colors disabled:opacity-50"
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {/* Calendar connection */}
+        <div className="panel-section bg-surface-50">
+          <div className="rounded-2xl border border-surface-200 bg-white p-4">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-text-muted">
+                  Google Calendar
+                </p>
+                <h3 className="text-lg font-bold text-text-primary">
+                  {calendarStatus?.connected ? "Connected" : "Not connected"}
+                </h3>
+              </div>
+              <span
+                className={`rounded-full px-3 py-1 text-sm font-semibold ${
+                  calendarStatus?.connected
+                    ? "bg-safe/10 text-safe"
+                    : "bg-warning/10 text-warning"
+                }`}
               >
-                Disconnect
-              </button>
-            ) : (
+                {calendarLoading
+                  ? "Checking..."
+                  : calendarStatus?.connected
+                    ? "Ready"
+                    : "Disconnected"}
+              </span>
+            </div>
+
+            <p className="text-base leading-relaxed text-text-secondary">
+              {calendarStatus?.message ||
+                "Connect Google Calendar so SafeStep can mention your next appointment while helping you browse."}
+            </p>
+
+            {calendarStatus?.connected && calendarStatus.nextAppointment ? (
+              <div className="mt-3 rounded-xl border border-surface-200 bg-surface-50 p-3">
+                <p className="mb-1 text-sm font-semibold uppercase tracking-wide text-text-muted">
+                  Next event
+                </p>
+                <p className="text-base font-medium text-text-primary">
+                  {calendarStatus.nextAppointment.summary}
+                </p>
+                <p className="text-sm text-text-secondary">
+                  {calendarStatus.nextAppointment.whenLabel}
+                  {calendarStatus.nextAppointment.timeLabel
+                    ? ` at ${calendarStatus.nextAppointment.timeLabel}`
+                    : ""}
+                  {calendarStatus.nextAppointment.location
+                    ? ` · ${calendarStatus.nextAppointment.location}`
+                    : ""}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex gap-2">
+              {calendarStatus?.connected ? (
+                <button
+                  onClick={handleCalendarDisconnect}
+                  disabled={calendarLoading}
+                  className="flex-1 rounded-xl border-2 border-surface-200 px-4 py-3 font-semibold text-text-primary transition-colors hover:border-danger hover:text-danger disabled:opacity-50"
+                >
+                  Disconnect
+                </button>
+              ) : (
+                <button
+                  onClick={handleCalendarConnect}
+                  disabled={calendarLoading}
+                  className="flex-1 rounded-xl bg-primary-500 px-4 py-3 font-semibold text-white transition-colors hover:bg-primary-600 disabled:opacity-50"
+                >
+                  Connect Google Calendar
+                </button>
+              )}
               <button
-                onClick={handleCalendarConnect}
+                onClick={loadCalendarStatus}
                 disabled={calendarLoading}
-                className="flex-1 px-4 py-3 rounded-xl bg-primary-500 text-white font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
+                className="rounded-xl border-2 border-surface-200 px-4 py-3 font-semibold text-text-secondary transition-colors hover:border-primary-300 hover:text-primary-600 disabled:opacity-50"
               >
-                Connect Google Calendar
+                Refresh
               </button>
-            )}
-            <button
-              onClick={loadCalendarStatus}
-              disabled={calendarLoading}
-              className="px-4 py-3 rounded-xl border-2 border-surface-200 text-text-secondary font-semibold hover:border-primary-300 hover:text-primary-600 transition-colors disabled:opacity-50"
-            >
-              Refresh
-            </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Action Buttons */}
-      <div className="panel-section space-y-2">
-        <button
-          id="btn-next-step"
-          className="action-btn action-btn-primary"
-          onClick={handleNextStep}
-          disabled={isLoading}
-        >
-          <span className="text-2xl">👉</span>
-          <span>What do I do next?</span>
-        </button>
-
-        <button
-          id="btn-scam-check"
-          className="action-btn action-btn-amber"
-          onClick={handleScamCheck}
-          disabled={isLoading}
-        >
-          <span className="text-2xl">🛡️</span>
-          <span>Is this safe?</span>
-        </button>
-
-        <button
-          id="btn-appointments"
-          className="action-btn action-btn-indigo"
-          onClick={handleAppointments}
-          disabled={isLoading}
-        >
-          <span className="text-2xl">📅</span>
-          <span>Appointments</span>
-        </button>
-
-        {/* Secondary actions */}
-        <div className="flex gap-2 pt-1">
+        {/* Action Buttons */}
+        <div className="panel-section space-y-2">
           <button
-            id="btn-memory"
-            className="action-btn action-btn-secondary flex-1 !text-base !py-3"
-            onClick={handleMemory}
+            id="btn-next-step"
+            className="action-btn action-btn-primary"
+            onClick={handleNextStep}
             disabled={isLoading}
           >
-            <span>🧠</span>
-            <span>What was I doing?</span>
+            <span className="text-2xl">👉</span>
+            <span>What do I do next?</span>
           </button>
+
           <button
-            id="btn-repeat"
-            className="action-btn action-btn-secondary !text-base !py-3"
-            onClick={() => {
-              if (responses.length > 0) {
-                const last = responses[0];
-                addResponse({ ...last, timestamp: new Date() });
-              }
-            }}
-            disabled={isLoading || responses.length === 0}
+            id="btn-scam-check"
+            className="action-btn action-btn-amber"
+            onClick={handleScamCheck}
+            disabled={isLoading}
           >
-            <span>🔄</span>
+            <span className="text-2xl">🛡️</span>
+            <span>Is this safe?</span>
           </button>
-        </div>
-      </div>
 
-      {/* Free-text input */}
-      <div className="panel-section">
-        <div className="relative">
-          <input
-            id="free-text-input"
-            type="text"
-            value={freeText}
-            onChange={(e) => setFreeText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && freeText.trim()) {
-                handleNextStep();
-              }
-            }}
-            placeholder="Type a question or paste a link..."
-            className="w-full px-4 py-3 pr-12 rounded-xl border-2 border-surface-200 bg-white text-lg focus:outline-none focus:border-primary-400 transition-colors placeholder:text-text-muted"
-          />
-          {freeText.trim() && (
-            <button
-              onClick={handleNextStep}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-primary-500 text-white flex items-center justify-center hover:bg-primary-600 transition-colors"
-            >
-              →
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Responses */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3" id="responses-area">
-        {isLoading && (
-          <div className="response-card flex items-center gap-3">
-            <div className="spinner" />
-            <span className="text-text-secondary text-lg">
-              Thinking...
-            </span>
-          </div>
-        )}
-
-        {responses.length === 0 && !isLoading && (
-          <div className="text-center py-12 px-6">
-            <div className="text-5xl mb-4">👋</div>
-            <p className="text-xl text-text-secondary font-medium mb-2">
-              Hello! I&apos;m here to help.
-            </p>
-            <p className="text-text-muted text-lg">
-              Click a button above or type a question to get started.
-            </p>
-          </div>
-        )}
-
-        {responses.map((response) => (
-          <div
-            key={response.timestamp.getTime()}
-            className={`response-card ${getClassificationStyles(response.classification)}`}
+          <button
+            id="btn-appointments"
+            className="action-btn action-btn-indigo"
+            onClick={handleAppointments}
+            disabled={isLoading}
           >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-lg">
-                {response.classification
-                  ? getClassificationIcon(response.classification)
-                  : getTypeIcon(response.type)}
-              </span>
-              <span className="text-sm font-semibold text-text-secondary uppercase tracking-wide">
-                {getTypeLabel(response.type)}
-              </span>
-              {response.classification && (
-                <span
-                  className={`ml-auto text-sm font-bold uppercase ${
-                    response.classification === "safe"
-                      ? "text-safe"
-                      : response.classification === "risky"
-                        ? "text-danger"
-                        : "text-warning"
-                  }`}
-                >
-                  {response.classification === "safe"
-                    ? "Looks Safe"
-                    : response.classification === "risky"
-                      ? "Looks Risky"
-                      : "Not Sure"}
-                </span>
-              )}
-            </div>
-            <p className="text-lg leading-relaxed text-text-primary">
-              {response.content}
-            </p>
+            <span className="text-2xl">📅</span>
+            <span>Appointments</span>
+          </button>
+
+          {/* Secondary actions */}
+          <div className="flex gap-2 pt-1">
+            <button
+              id="btn-memory"
+              className="action-btn action-btn-secondary !py-3 !text-base flex-1"
+              onClick={handleMemory}
+              disabled={isLoading}
+            >
+              <span>🧠</span>
+              <span>What was I doing?</span>
+            </button>
+            <button
+              id="btn-repeat"
+              className="action-btn action-btn-secondary !py-3 !text-base"
+              onClick={() => {
+                if (responses.length > 0) {
+                  const last = responses[0];
+                  addResponse({ ...last, timestamp: new Date() });
+                }
+              }}
+              disabled={isLoading || responses.length === 0}
+            >
+              <span>🔄</span>
+            </button>
           </div>
-        ))}
+        </div>
+
+        {/* Free-text input */}
+        <div className="panel-section">
+          <div className="relative">
+            <input
+              id="free-text-input"
+              type="text"
+              value={freeText}
+              onChange={(e) => setFreeText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && freeText.trim()) {
+                  handleNextStep();
+                }
+              }}
+              placeholder="Type a question or paste a link..."
+              className="w-full rounded-xl border-2 border-surface-200 bg-white px-4 py-3 pr-12 text-lg transition-colors placeholder:text-text-muted focus:border-primary-400 focus:outline-none"
+            />
+            {freeText.trim() && (
+              <button
+                onClick={handleNextStep}
+                className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-primary-500 text-white transition-colors hover:bg-primary-600"
+              >
+                →
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Responses */}
+        <div className="space-y-3 px-3 pb-3" id="responses-area">
+          {isLoading && (
+            <div className="response-card flex items-center gap-3">
+              <div className="spinner" />
+              <span className="text-lg text-text-secondary">
+                Thinking...
+              </span>
+            </div>
+          )}
+
+          {responses.length === 0 && !isLoading && (
+            <div className="px-6 py-12 text-center">
+              <div className="mb-4 text-5xl">👋</div>
+              <p className="mb-2 text-xl font-medium text-text-secondary">
+                Hello! I&apos;m here to help.
+              </p>
+              <p className="text-lg text-text-muted">
+                Click a button above or type a question to get started.
+              </p>
+            </div>
+          )}
+
+          {responses.map((response) => (
+            <div
+              key={response.timestamp.getTime()}
+              className={`response-card ${getClassificationStyles(response.classification)}`}
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-lg">
+                  {response.classification
+                    ? getClassificationIcon(response.classification)
+                    : getTypeIcon(response.type)}
+                </span>
+                <span className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+                  {getTypeLabel(response.type)}
+                </span>
+                {response.classification && (
+                  <span
+                    className={`ml-auto text-sm font-bold uppercase ${
+                      response.classification === "safe"
+                        ? "text-safe"
+                        : response.classification === "risky"
+                          ? "text-danger"
+                          : "text-warning"
+                    }`}
+                  >
+                    {response.classification === "safe"
+                      ? "Looks Safe"
+                      : response.classification === "risky"
+                        ? "Looks Risky"
+                        : "Not Sure"}
+                  </span>
+                )}
+              </div>
+              <p className="text-lg leading-relaxed text-text-primary">
+                {response.content}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

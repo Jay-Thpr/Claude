@@ -1,5 +1,7 @@
 insert into public.user_profiles (
   user_id,
+  google_email,
+  google_name,
   name,
   email,
   timezone,
@@ -8,10 +10,15 @@ insert into public.user_profiles (
   support_needs,
   preferences,
   conditions,
-  notes
+  notes,
+  raw_intake_text,
+  onboarding_summary,
+  onboarding_completed_at
 )
 values (
   'demo-user-001',
+  'maria.garcia@example.com',
+  'Maria Garcia',
   'Maria Garcia',
   'maria.garcia@example.com',
   'America/Los_Angeles',
@@ -31,9 +38,14 @@ values (
     'Mild memory and task-sequencing difficulty',
     'Needs help tracking healthcare portals and appointment steps'
   ],
-  'Prefers calm, direct wording and should be warned before submitting forms or payment details.'
+  'Prefers calm, direct wording and should be warned before submitting forms or payment details.',
+  'Demo intake text for the hackathon prototype.',
+  'Demo user seeded from the sample intake flow.',
+  now()
 )
 on conflict (user_id) do update set
+  google_email = excluded.google_email,
+  google_name = excluded.google_name,
   name = excluded.name,
   email = excluded.email,
   timezone = excluded.timezone,
@@ -43,6 +55,9 @@ on conflict (user_id) do update set
   preferences = excluded.preferences,
   conditions = excluded.conditions,
   notes = excluded.notes,
+  raw_intake_text = excluded.raw_intake_text,
+  onboarding_summary = excluded.onboarding_summary,
+  onboarding_completed_at = excluded.onboarding_completed_at,
   updated_at = now();
 
 insert into public.user_context_entries (
