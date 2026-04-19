@@ -7,6 +7,7 @@ const node_test_1 = __importDefault(require("node:test"));
 const strict_1 = __importDefault(require("node:assert/strict"));
 const appointment_reminders_1 = require("../src/lib/appointment-reminders");
 const safety_rules_1 = require("../src/lib/safety-rules");
+const intent_router_1 = require("../src/lib/intent-router");
 const task_flow_1 = require("../src/lib/task-flow");
 (0, node_test_1.default)("appointment reminders stay calm and include practical prep", () => {
     const reminder = (0, appointment_reminders_1.buildAppointmentReminder)({
@@ -95,4 +96,18 @@ const task_flow_1 = require("../src/lib/task-flow");
     strict_1.default.match(summary, /Current stage: Check the doctor website/i);
     strict_1.default.match(summary, /Next stage: Pack what you need/i);
     strict_1.default.match(summary, /Next appointment: Cardiology follow-up with Dr. Martinez/i);
+});
+(0, node_test_1.default)("official government pages do not get treated as risky by default", () => {
+    const url = "https://www.health.gov";
+    const pageText = "Skip to main content. Official U.S. government health information. " +
+        "Protect yourself from fraud. If you get a message asking for your password, do not share it.";
+    strict_1.default.notEqual((0, safety_rules_1.assessRiskLevel)(pageText, url), "risky");
+    strict_1.default.ok(!(0, safety_rules_1.extractSuspiciousSignals)(pageText, url).includes("password"));
+    strict_1.default.notEqual((0, intent_router_1.routeIntent)({
+        mode: "auto",
+        query: "What does this government page mean?",
+        url,
+        pageTitle: "Official U.S. government health information",
+        visibleText: pageText,
+    }), "scam_check");
 });

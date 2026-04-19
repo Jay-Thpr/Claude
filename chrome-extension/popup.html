@@ -22,7 +22,12 @@
   <div id="alert-banner" class="alert-banner hidden" role="alert">
     <div class="alert-icon" aria-hidden="true">⚠</div>
     <div class="alert-body">
-      <div class="alert-title" id="alert-title"></div>
+      <div class="alert-header">
+        <div class="alert-title" id="alert-title"></div>
+        <button class="alert-dismiss-btn" id="alert-dismiss-btn" aria-label="Hide this warning">
+          Hide
+        </button>
+      </div>
       <ul class="alert-signals" id="alert-signals"></ul>
       <button class="alert-details-btn" id="alert-details-btn">See full details →</button>
     </div>
@@ -81,6 +86,16 @@
 
   <!-- Chat Panel -->
   <div id="panel-chat" class="panel hidden" role="tabpanel" aria-labelledby="tab-chat">
+    <div id="thinking-state" class="thinking-state hidden" role="status" aria-live="polite">
+      <div class="thinking-copy">
+        <span class="thinking-dot"></span>
+        <span id="thinking-text">SafeStep is thinking…</span>
+      </div>
+      <div class="thinking-bar" aria-hidden="true">
+        <div class="thinking-bar-fill"></div>
+      </div>
+    </div>
+
     <div id="chat-messages" class="chat-messages" aria-live="polite" aria-label="Chat messages"></div>
 
     <!-- Quick Actions -->

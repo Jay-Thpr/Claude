@@ -123,7 +123,7 @@ export async function createAppointment(
   }
 }
 
-function parseEventDate(value?: { date?: string; dateTime?: string } | null) {
+function parseEventDate(value?: { date?: string | null; dateTime?: string | null } | null) {
   const raw = value?.dateTime ?? value?.date;
   if (!raw) {
     return null;

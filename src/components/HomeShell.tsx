@@ -68,6 +68,7 @@ export default function HomeShell() {
             currentPageTitle={currentPageTitle}
             onUrlChange={setCurrentUrl}
             onPageTitleChange={setCurrentPageTitle}
+            onOpenAssistant={openPanel}
           />
         </div>
       </div>

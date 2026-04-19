@@ -14,7 +14,6 @@ const SCAM_HINTS = [
     "urgent",
     "suspicious",
     "password",
-    "medicare",
 ];
 const APPOINTMENT_HINTS = [
     "appointment",
@@ -39,6 +38,24 @@ const MEMORY_HINTS = [
 function score(text, hints) {
     return hints.reduce((total, hint) => total + (text.includes(hint) ? 1 : 0), 0);
 }
+function isGovernmentUrl(url) {
+    if (!url) {
+        return false;
+    }
+    try {
+        const hostname = new URL(url).hostname.toLowerCase();
+        return hostname.endsWith(".gov");
+    }
+    catch {
+        return false;
+    }
+}
+function hasExplicitSafetyQuestion(query) {
+    if (!query) {
+        return false;
+    }
+    return /\b(safe|scam|phishing|fraud|suspicious|is this real|legit|secure|security|warning)\b/i.test(query);
+}
 function routeIntent(input) {
     const haystack = [
         input.query,
@@ -56,8 +73,16 @@ function routeIntent(input) {
     const scamScore = score(haystack, SCAM_HINTS);
     const appointmentScore = score(haystack, APPOINTMENT_HINTS);
     const memoryScore = score(haystack, MEMORY_HINTS);
+    const officialGovernmentSite = isGovernmentUrl(input.url);
+    const explicitSafetyQuestion = hasExplicitSafetyQuestion(input.query);
     if (memoryScore >= appointmentScore && memoryScore >= scamScore && memoryScore > 0) {
         return "memory_recall";
+    }
+    if (officialGovernmentSite && !explicitSafetyQuestion) {
+        if (appointmentScore > 0) {
+            return "appointment";
+        }
+        return "guidance";
     }
     if (scamScore >= appointmentScore && scamScore > 0) {
         return "scam_check";

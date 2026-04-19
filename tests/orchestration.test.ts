@@ -6,90 +6,9 @@ import { handleScamCheckRequest } from "../src/app/api/scam-check/route";
 import { handleMemoryRequest, handleMemoryPostRequest } from "../src/app/api/memory/route";
 import { handleTaskFlowGetRequest, handleTaskFlowPostRequest } from "../src/app/api/task-flow/route";
 
-test("chat route returns planner-aware guidance and persists memory updates", async () => {
-  const request = new Request("http://localhost/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message: "What should I do next?",
-      url: "https://example.com/medicare",
-      pageTitle: "Medicare help",
-      taskMemory: {
-        current_task: "Preparing for Medicare",
-        last_step: "Opened the Medicare page.",
-      },
-      appointment: {
-        summary: "Medicare enrollment follow-up",
-        description: "Review the form",
-        prepNotes: "Stop before submitting anything.",
-      },
-    }),
-  });
-
-  const response = await handleChatRequest(request, {
-    userContext: {
-      profile: {
-        userId: "demo-user-001",
-        name: "Maria Garcia",
-        supportNeeds: ["One step at a time"],
-        preferences: ["Simple wording"],
-        conditions: ["Memory support"],
-      },
-      entries: [],
-    },
-    appointment: {
-      connected: true,
-      summary: "Medicare enrollment follow-up",
-      description: "Review the form",
-      prepNotes: "Stop before submitting anything.",
-    },
-    orchestrateCopilot: async () => ({
-      mode: "guidance",
-      summary: "Here is the next small step.",
-      nextStep: "Open the form and review it.",
-      explanation: "Stay on the page and check the details carefully.",
-      riskLevel: "uncertain",
-      suspiciousSignals: ["Form fields"],
-      memoryUpdate: {
-        currentTask: "Preparing for Medicare",
-        lastStep: "Reviewed the page and stopped before submitting.",
-      },
-    }),
-    persistPreferenceSignals: async () => ["Simple wording"],
-    persistCopilotMemoryUpdate: async () => ({
-      currentTask: "Preparing for Medicare",
-      taskType: "appointment-prep",
-      taskGoal: "Review the Medicare form",
-      currentStageIndex: 0,
-      currentStageTitle: "Open the form",
-      currentStageDetail: "Find the right Medicare form.",
-      nextStageTitle: "Review details",
-      nextStageDetail: "Check the fields carefully.",
-      stagePlan: [],
-      status: "active",
-      lastStep: "Reviewed the page and stopped before submitting.",
-      currentUrl: "https://example.com/medicare",
-      pageTitle: "Medicare help",
-    }),
-  });
-
-  assert.equal(response.status, 200);
-  const data = (await response.json()) as {
-    message?: string;
-    saved_preferences?: string[];
-    task_memory?: { currentTask?: string | null; lastStep?: string | null };
-    reminder?: { message?: string };
-  };
-
-  assert.match(data.message || "", /next small step/i);
-  assert.deepEqual(data.saved_preferences, ["Simple wording"]);
-  assert.equal(data.task_memory?.currentTask, "Preparing for Medicare");
-  assert.equal(data.task_memory?.lastStep, "Reviewed the page and stopped before submitting.");
-  assert.match(data.reminder?.message || "", /Medicare enrollment follow-up/i);
-});
-
-test("chat route answers casual questions directly without orchestration", async () => {
-  let orchestrated = false;
+test("chat route answers basic chat with exactly one routing call and one response call", async () => {
+  let classifyCalls = 0;
+  let planCalls = 0;
   const request = new Request("http://localhost/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -111,12 +30,22 @@ test("chat route answers casual questions directly without orchestration", async
       },
       entries: [],
     },
-    generateGeneralChatReply: async () => ({
-      message: "I’m doing well, thanks for asking.",
-    }),
-    orchestrateCopilot: async () => {
-      orchestrated = true;
-      throw new Error("orchestrator should not run for casual chat");
+    classifyChatIntent: async () => {
+      classifyCalls += 1;
+      return { intent: "basic_chat" as const };
+    },
+    generateChatPlan: async (input) => {
+      planCalls += 1;
+      assert.equal(input.intent, "basic_chat");
+      return {
+        message: "I’m doing well, thanks for asking.",
+        summary: "I’m doing well, thanks for asking.",
+        nextStep: "Keep chatting if you want.",
+        explanation: "A simple friendly reply is enough here.",
+        riskLevel: "safe",
+        suspiciousSignals: [],
+        calendarAction: null,
+      };
     },
     persistPreferenceSignals: async () => [],
   });
@@ -128,10 +57,222 @@ test("chat route answers casual questions directly without orchestration", async
     saved_preferences?: string[];
   };
 
-  assert.equal(orchestrated, false);
+  assert.equal(classifyCalls, 1);
+  assert.equal(planCalls, 1);
   assert.equal(data.mode, "chat");
   assert.equal(data.message, "I’m doing well, thanks for asking.");
   assert.deepEqual(data.saved_preferences, []);
+});
+
+test("chat route answers page security questions through the same two-step flow", async () => {
+  let classifyCalls = 0;
+  let planCalls = 0;
+  const request = new Request("http://localhost/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: "Is this page safe?",
+      url: "https://example.com/billing",
+      pageTitle: "Urgent account warning",
+      visibleText: "Act now to avoid suspension. Enter your password.",
+    }),
+  });
+
+  const response = await handleChatRequest(request, {
+    userContext: {
+      profile: {
+        userId: "demo-user-001",
+        name: "Maria Garcia",
+        supportNeeds: [],
+        preferences: [],
+        conditions: [],
+      },
+      entries: [],
+    },
+    classifyChatIntent: async () => {
+      classifyCalls += 1;
+      return { intent: "page_security" as const };
+    },
+    generateChatPlan: async (input) => {
+      planCalls += 1;
+      assert.equal(input.intent, "page_security");
+      return {
+        message: "This page looks risky.",
+        summary: "This page looks risky.",
+        nextStep: "Do not enter personal information.",
+        explanation: "It is asking for sensitive information too quickly.",
+        riskLevel: "risky",
+        suspiciousSignals: ["Act now", "password"],
+        calendarAction: null,
+      };
+    },
+    persistPreferenceSignals: async () => [],
+  });
+
+  assert.equal(response.status, 200);
+  const data = (await response.json()) as {
+    mode?: string;
+    message?: string;
+    riskLevel?: string;
+    suspiciousSignals?: string[];
+    saved_preferences?: string[];
+  };
+
+  assert.equal(classifyCalls, 1);
+  assert.equal(planCalls, 1);
+  assert.equal(data.mode, "scam_check");
+  assert.match(data.message || "", /risky/i);
+  assert.equal(data.riskLevel, "risky");
+  assert.deepEqual(data.suspiciousSignals, ["Act now", "password"]);
+  assert.deepEqual(data.saved_preferences, []);
+});
+
+test("chat route answers stage questions without extra LLM hops", async () => {
+  let classifyCalls = 0;
+  let planCalls = 0;
+  const request = new Request("http://localhost/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: "What is my current action stage?",
+      url: "https://example.com",
+      pageTitle: "Home",
+      taskMemory: {
+        current_task: "Reviewing the page",
+        current_stage_title: "Check the details",
+        current_stage_detail: "Read the main instructions carefully.",
+        next_stage_title: "Continue if it looks right",
+        next_stage_detail: "Move on only if the details match.",
+        last_step: "Opened the page.",
+      },
+    }),
+  });
+
+  const response = await handleChatRequest(request, {
+    userContext: {
+      profile: {
+        userId: "demo-user-001",
+        name: "Maria Garcia",
+        supportNeeds: [],
+        preferences: [],
+        conditions: [],
+      },
+      entries: [],
+    },
+    classifyChatIntent: async () => {
+      classifyCalls += 1;
+      return { intent: "current_stage" as const };
+    },
+    generateChatPlan: async (input) => {
+      planCalls += 1;
+      assert.equal(input.intent, "current_stage");
+      return {
+        message: "Your current stage is Check the details.",
+        summary: "Your current stage is Check the details.",
+        nextStep: "Read the main instructions carefully.",
+        explanation: "Your last step was Opened the page.",
+        riskLevel: "safe",
+        suspiciousSignals: [],
+        calendarAction: null,
+      };
+    },
+    persistPreferenceSignals: async () => [],
+  });
+
+  assert.equal(response.status, 200);
+  const data = (await response.json()) as {
+    mode?: string;
+    message?: string;
+    summary?: string;
+  };
+
+  assert.equal(classifyCalls, 1);
+  assert.equal(planCalls, 1);
+  assert.equal(data.mode, "memory_recall");
+  assert.match(data.message || "", /check the details/i);
+  assert.match(data.summary || "", /current stage/i);
+});
+
+test("chat route can hand off calendar actions without extra model calls", async () => {
+  let classifyCalls = 0;
+  let planCalls = 0;
+  let calendarCalls = 0;
+  const request = new Request("http://localhost/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: "Please add this appointment to my calendar.",
+      url: "https://example.com/appointment",
+      pageTitle: "Appointment details",
+    }),
+  });
+
+  const response = await handleChatRequest(request, {
+    userContext: {
+      profile: {
+        userId: "demo-user-001",
+        name: "Maria Garcia",
+        supportNeeds: [],
+        preferences: [],
+        conditions: [],
+      },
+      entries: [],
+    },
+    classifyChatIntent: async () => {
+      classifyCalls += 1;
+      return { intent: "calendar_action" as const };
+    },
+    generateChatPlan: async (input) => {
+      planCalls += 1;
+      assert.equal(input.intent, "calendar_action");
+      return {
+        message: "I added the appointment to your calendar.",
+        summary: "I added the appointment to your calendar.",
+        nextStep: "Check your calendar for the new event.",
+        explanation: "The event was created successfully.",
+        riskLevel: "safe",
+        suspiciousSignals: [],
+        calendarAction: {
+          action: "create",
+          title: "Doctor appointment",
+          scheduledAt: "2026-04-20T10:00:00.000Z",
+          durationMinutes: 30,
+          notes: "Bring your insurance card.",
+          location: "Clinic",
+        },
+      };
+    },
+    runCalendarAction: async (input) => {
+      calendarCalls += 1;
+      assert.equal(input.action.action, "create");
+      return {
+        calendarEvent: {
+          action: "create",
+          eventId: "event-123",
+          title: input.action.title || "Doctor appointment",
+          scheduledAt: input.action.scheduledAt,
+          durationMinutes: input.action.durationMinutes,
+        },
+        appointment: null,
+      };
+    },
+    persistPreferenceSignals: async () => [],
+  });
+
+  assert.equal(response.status, 200);
+  const data = (await response.json()) as {
+    mode?: string;
+    message?: string;
+    calendarEvent?: { action?: string; eventId?: string };
+  };
+
+  assert.equal(classifyCalls, 1);
+  assert.equal(planCalls, 1);
+  assert.equal(calendarCalls, 1);
+  assert.equal(data.mode, "appointment");
+  assert.match(data.message || "", /calendar/i);
+  assert.equal(data.calendarEvent?.action, "create");
+  assert.equal(data.calendarEvent?.eventId, "event-123");
 });
 
 test("copilot/respond persists memory updates when the model returns one", async () => {
@@ -234,6 +375,39 @@ test("scam check classifies risky pages and logs the result", async () => {
   assert.equal(data.classification, "risky");
   assert.deepEqual(data.suspicious_signals, ["Act now", "password"]);
   assert.deepEqual(logged, [{ user_id: "demo-user-001", classification: "risky" }]);
+});
+
+test("scam check keeps government pages safe even when the model is cautious", async () => {
+  const request = new Request("http://localhost/api/scam-check", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      url: "https://www.medicare.gov",
+      pageTitle: "Welcome to Medicare",
+      content: "Protect yourself from Medicare fraud. If you get a message asking for your password, do not share it.",
+    }),
+  });
+
+  const response = await handleScamCheckRequest(request, {
+    orchestrateCopilot: async () => ({
+      mode: "scam_check",
+      summary: "This page looks risky.",
+      nextStep: "Do not enter personal information.",
+      explanation: "It mentions fraud and password language.",
+      riskLevel: "risky",
+      suspiciousSignals: ["fraud", "password"],
+    }),
+    logScamCheck: async () => {},
+  });
+
+  assert.equal(response.status, 200);
+  const data = (await response.json()) as {
+    classification?: string;
+    blocked?: boolean;
+  };
+
+  assert.equal(data.classification, "safe");
+  assert.equal(data.blocked, false);
 });
 
 test("memory routes read and write planner state through the injected store", async () => {

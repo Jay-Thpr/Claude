@@ -1,18 +1,23 @@
 import type { AppointmentContext, CopilotResponse, TaskMemoryState } from "./response-schema";
 
-const RISKY_PATTERNS = [
-  /act now/i,
-  /urgent/i,
-  /suspend/i,
-  /password/i,
-  /gift card/i,
-  /wire transfer/i,
-  /medicare number/i,
-  /credit card/i,
-  /debit card/i,
-  /verify your account/i,
-  /final notice/i,
-  /download/i,
+type RiskPattern = {
+  pattern: RegExp;
+  allowOnGovernmentSite?: boolean;
+};
+
+const RISKY_PATTERNS: RiskPattern[] = [
+  { pattern: /act now/i },
+  { pattern: /urgent/i },
+  { pattern: /suspend/i },
+  { pattern: /password/i },
+  { pattern: /gift card/i },
+  { pattern: /wire transfer/i },
+  { pattern: /medicare number/i, allowOnGovernmentSite: true },
+  { pattern: /credit card/i },
+  { pattern: /debit card/i },
+  { pattern: /verify your account/i },
+  { pattern: /final notice/i },
+  { pattern: /download/i },
 ];
 
 const UNCERTAIN_PATTERNS = [
@@ -24,15 +29,33 @@ const UNCERTAIN_PATTERNS = [
   /update/i,
 ];
 
-export function extractSuspiciousSignals(text: string) {
+function isGovernmentUrl(url?: string | null) {
+  if (!url) {
+    return false;
+  }
+
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return hostname.endsWith(".gov");
+  } catch {
+    return false;
+  }
+}
+
+export function extractSuspiciousSignals(text: string, url?: string) {
   const normalized = text.trim();
   const signals = new Set<string>();
+  const isGovernmentSite = isGovernmentUrl(url);
 
   if (!normalized) {
     return [];
   }
 
-  for (const pattern of RISKY_PATTERNS) {
+  for (const { pattern, allowOnGovernmentSite } of RISKY_PATTERNS) {
+    if (isGovernmentSite && !allowOnGovernmentSite) {
+      continue;
+    }
+
     if (pattern.test(normalized)) {
       signals.add(pattern.source.replace(/\\/g, ""));
     }
@@ -47,8 +70,16 @@ export function extractSuspiciousSignals(text: string) {
   return Array.from(signals);
 }
 
-export function assessRiskLevel(text: string): CopilotResponse["riskLevel"] {
-  const riskyHits = RISKY_PATTERNS.filter((pattern) => pattern.test(text)).length;
+export function assessRiskLevel(text: string, url?: string): CopilotResponse["riskLevel"] {
+  const isGovernmentSite = isGovernmentUrl(url);
+  if (isGovernmentSite) {
+    return UNCERTAIN_PATTERNS.some((pattern) => pattern.test(text)) ? "uncertain" : "safe";
+  }
+
+  const riskyHits = RISKY_PATTERNS.filter(
+    ({ pattern, allowOnGovernmentSite }) =>
+      pattern.test(text) && !allowOnGovernmentSite,
+  ).length;
   if (riskyHits >= 2) {
     return "risky";
   }
@@ -80,9 +111,10 @@ export function buildMemorySummary(
 export function fallbackSafetyResponse(
   text: string,
   mode: "scam_check" | "guidance" | "appointment" | "memory_recall",
+  url?: string,
 ) {
-  const riskLevel = assessRiskLevel(text);
-  const suspiciousSignals = extractSuspiciousSignals(text);
+  const riskLevel = assessRiskLevel(text, url);
+  const suspiciousSignals = extractSuspiciousSignals(text, url);
 
   if (mode === "scam_check") {
     return {

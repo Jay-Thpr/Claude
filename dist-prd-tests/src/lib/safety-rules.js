@@ -5,18 +5,18 @@ exports.assessRiskLevel = assessRiskLevel;
 exports.buildMemorySummary = buildMemorySummary;
 exports.fallbackSafetyResponse = fallbackSafetyResponse;
 const RISKY_PATTERNS = [
-    /act now/i,
-    /urgent/i,
-    /suspend/i,
-    /password/i,
-    /gift card/i,
-    /wire transfer/i,
-    /medicare number/i,
-    /credit card/i,
-    /debit card/i,
-    /verify your account/i,
-    /final notice/i,
-    /download/i,
+    { pattern: /act now/i },
+    { pattern: /urgent/i },
+    { pattern: /suspend/i },
+    { pattern: /password/i },
+    { pattern: /gift card/i },
+    { pattern: /wire transfer/i },
+    { pattern: /medicare number/i, allowOnGovernmentSite: true },
+    { pattern: /credit card/i },
+    { pattern: /debit card/i },
+    { pattern: /verify your account/i },
+    { pattern: /final notice/i },
+    { pattern: /download/i },
 ];
 const UNCERTAIN_PATTERNS = [
     /billing/i,
@@ -26,13 +26,29 @@ const UNCERTAIN_PATTERNS = [
     /sign in/i,
     /update/i,
 ];
-function extractSuspiciousSignals(text) {
+function isGovernmentUrl(url) {
+    if (!url) {
+        return false;
+    }
+    try {
+        const hostname = new URL(url).hostname.toLowerCase();
+        return hostname.endsWith(".gov");
+    }
+    catch {
+        return false;
+    }
+}
+function extractSuspiciousSignals(text, url) {
     const normalized = text.trim();
     const signals = new Set();
+    const isGovernmentSite = isGovernmentUrl(url);
     if (!normalized) {
         return [];
     }
-    for (const pattern of RISKY_PATTERNS) {
+    for (const { pattern, allowOnGovernmentSite } of RISKY_PATTERNS) {
+        if (isGovernmentSite && !allowOnGovernmentSite) {
+            continue;
+        }
         if (pattern.test(normalized)) {
             signals.add(pattern.source.replace(/\\/g, ""));
         }
@@ -44,8 +60,12 @@ function extractSuspiciousSignals(text) {
     }
     return Array.from(signals);
 }
-function assessRiskLevel(text) {
-    const riskyHits = RISKY_PATTERNS.filter((pattern) => pattern.test(text)).length;
+function assessRiskLevel(text, url) {
+    const isGovernmentSite = isGovernmentUrl(url);
+    if (isGovernmentSite) {
+        return UNCERTAIN_PATTERNS.some((pattern) => pattern.test(text)) ? "uncertain" : "safe";
+    }
+    const riskyHits = RISKY_PATTERNS.filter(({ pattern, allowOnGovernmentSite }) => pattern.test(text) && !allowOnGovernmentSite).length;
     if (riskyHits >= 2) {
         return "risky";
     }
@@ -68,9 +88,9 @@ function buildMemorySummary(taskMemory, appointment) {
     ].filter(Boolean);
     return parts.join(". ");
 }
-function fallbackSafetyResponse(text, mode) {
-    const riskLevel = assessRiskLevel(text);
-    const suspiciousSignals = extractSuspiciousSignals(text);
+function fallbackSafetyResponse(text, mode, url) {
+    const riskLevel = assessRiskLevel(text, url);
+    const suspiciousSignals = extractSuspiciousSignals(text, url);
     if (mode === "scam_check") {
         return {
             mode,

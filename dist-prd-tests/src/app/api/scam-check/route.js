@@ -40,6 +40,17 @@ const scam_signals_1 = require("../../../lib/scam-signals");
 const twilio_1 = require("../../../lib/twilio");
 const logger_1 = require("../../../lib/logger");
 const DEMO_USER_ID = "demo-user-001";
+function isGovernmentUrl(url) {
+    if (!url) {
+        return false;
+    }
+    try {
+        return new URL(url).hostname.toLowerCase().endsWith(".gov");
+    }
+    catch {
+        return false;
+    }
+}
 async function POST(request) {
     return handleScamCheckRequest(request);
 }
@@ -64,11 +75,13 @@ async function handleScamCheckRequest(request, deps = {}) {
             visibleText: content,
             pageSummary: signalContext ?? undefined,
         });
-        const classification = response.riskLevel === "safe"
+        const classification = isGovernmentUrl(url)
             ? "safe"
-            : response.riskLevel === "risky"
-                ? "risky"
-                : "not-sure";
+            : response.riskLevel === "safe"
+                ? "safe"
+                : response.riskLevel === "risky"
+                    ? "risky"
+                    : "not-sure";
         const isRisky = classification === "risky";
         const blocked = isRisky && (actions?.blockOnRisky ?? false);
         void (async () => {

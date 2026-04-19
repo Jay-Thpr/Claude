@@ -155,8 +155,8 @@ function buildContext(input, taskMemory, appointment, userProfile, userContextEn
     const pageText = [input.pageTitle, input.query, input.visibleText, input.pageSummary, input.url]
         .filter(Boolean)
         .join(" ");
-    const suspiciousSignals = (0, safety_rules_1.extractSuspiciousSignals)(pageText);
-    const riskLevel = (0, safety_rules_1.assessRiskLevel)(pageText);
+    const suspiciousSignals = (0, safety_rules_1.extractSuspiciousSignals)(pageText, input.url);
+    const riskLevel = (0, safety_rules_1.assessRiskLevel)(pageText, input.url);
     return {
         userProfile,
         userContextEntries,
@@ -192,7 +192,7 @@ async function orchestrateCopilot(input) {
         .filter(Boolean)
         .join("\n");
     if (context.intent === "scam_check" && context.riskLevel === "risky") {
-        return (0, response_schema_1.normalizeCopilotResponse)((0, safety_rules_1.fallbackSafetyResponse)(textToAnalyze, context.intent), context.intent);
+        return (0, response_schema_1.normalizeCopilotResponse)((0, safety_rules_1.fallbackSafetyResponse)(textToAnalyze, context.intent, input.url), context.intent);
     }
     const prompt = (0, prompts_1.buildCopilotPrompt)({
         mode: context.intent,
@@ -227,7 +227,7 @@ async function orchestrateCopilot(input) {
     }
     catch (error) {
         console.error("Copilot orchestration failed:", error);
-        const fallback = (0, safety_rules_1.fallbackSafetyResponse)(textToAnalyze, context.intent);
+        const fallback = (0, safety_rules_1.fallbackSafetyResponse)(textToAnalyze, context.intent, input.url);
         return (0, response_schema_1.normalizeCopilotResponse)({
             ...fallback,
             memoryUpdate: {

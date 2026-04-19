@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildAppointmentReminder } from "../src/lib/appointment-reminders";
-import { buildMemorySummary } from "../src/lib/safety-rules";
+import { assessRiskLevel, buildMemorySummary, extractSuspiciousSignals } from "../src/lib/safety-rules";
+import { routeIntent } from "../src/lib/intent-router";
 import {
   DEFAULT_APPOINTMENT_STAGE_PLAN,
   buildStageMessage,
@@ -106,4 +107,24 @@ test("memory summary explains what the user is doing and what comes next", () =>
   assert.match(summary, /Current stage: Check the doctor website/i);
   assert.match(summary, /Next stage: Pack what you need/i);
   assert.match(summary, /Next appointment: Cardiology follow-up with Dr. Martinez/i);
+});
+
+test("official government pages do not get treated as risky by default", () => {
+  const url = "https://www.health.gov";
+  const pageText =
+    "Skip to main content. Official U.S. government health information. " +
+    "Protect yourself from fraud. If you get a message asking for your password, do not share it.";
+
+  assert.notEqual(assessRiskLevel(pageText, url), "risky");
+  assert.ok(!extractSuspiciousSignals(pageText, url).includes("password"));
+  assert.notEqual(
+    routeIntent({
+      mode: "auto",
+      query: "What does this government page mean?",
+      url,
+      pageTitle: "Official U.S. government health information",
+      visibleText: pageText,
+    }),
+    "scam_check",
+  );
 });

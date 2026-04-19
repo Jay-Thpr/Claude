@@ -1,15 +1,19 @@
 import { cookies } from "next/headers";
 import { buildAppointmentContextFromRow } from "../../../lib/appointment-utils";
-import { buildAppointmentReminder } from "../../../lib/appointment-reminders";
-import { generateGeneralChatReply } from "../../../lib/general-chat";
-import { routeIntent, shouldUseBrowserUse } from "../../../lib/intent-router";
+import { generateChatPlan, classifyChatIntent } from "../../../lib/chat-agent";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
 import { loadUserContextFromCookies } from "../../../lib/user-context";
 import { persistPreferenceSignals } from "../../../lib/preference-store";
 import { getTaskFlow } from "../../../lib/memory-store";
-import { persistCopilotMemoryUpdate } from "../../../lib/copilot-memory";
 import { normalizeTaskMemoryInput } from "../../../lib/task-memory-input";
-import type { CopilotRequest, CopilotResponse, UserContextEntry, UserProfileContext, AppointmentContext } from "../../../lib/response-schema";
+import { createAppointment, updateAppointment } from "../../../lib/google-calendar";
+import type {
+  AppointmentContext,
+  TaskMemoryState,
+  UserContextEntry,
+  UserProfileContext,
+} from "../../../lib/response-schema";
+import type { CalendarActionPlan, ChatAgentInput, ChatIntent } from "../../../lib/chat-agent";
 
 type ChatRequest = {
   message?: string;
@@ -30,31 +34,124 @@ type ChatRequest = {
   } | null;
 };
 
+type CalendarExecutionResult = {
+  calendarEvent: {
+    action: "create" | "update";
+    eventId: string;
+    title: string;
+    scheduledAt?: string;
+    durationMinutes?: number;
+  } | null;
+  appointment?: AppointmentContext | null;
+};
+
 type ChatDependencies = {
-  generateGeneralChatReply?: typeof generateGeneralChatReply;
-  orchestrateCopilot?: (input: CopilotRequest) => Promise<CopilotResponse>;
+  classifyChatIntent?: typeof classifyChatIntent;
+  generateChatPlan?: typeof generateChatPlan;
   persistPreferenceSignals?: typeof persistPreferenceSignals;
-  persistCopilotMemoryUpdate?: typeof persistCopilotMemoryUpdate;
+  runCalendarAction?: (input: {
+    action: CalendarActionPlan;
+    appointment?: AppointmentContext | null;
+  }) => Promise<CalendarExecutionResult>;
   userContext?: {
     profile: UserProfileContext;
     entries: UserContextEntry[];
   };
   appointment?: AppointmentContext | null;
+  taskFlow?: TaskMemoryState | null;
 };
 
-function buildChatMessage(
-  summary?: string,
-  nextStep?: string,
-  explanation?: string,
-  reminderMessage?: string,
-  savedPreferences?: string[],
+function buildExecutionInput(
+  requestBody: ChatRequest,
+  taskMemory: TaskMemoryState | null,
+  appointment: AppointmentContext | null,
+  userContext: { profile: UserProfileContext; entries: UserContextEntry[] },
+): ChatAgentInput {
+  return {
+    query: requestBody.message?.trim() || "",
+    url: requestBody.url,
+    pageTitle: requestBody.pageTitle,
+    visibleText: requestBody.visibleText,
+    pageSummary: requestBody.pageSummary,
+    taskMemory,
+    appointment,
+    userProfile: userContext.profile,
+    userContextEntries: userContext.entries,
+  };
+}
+
+function resolveTaskMemory(
+  taskMemory: TaskMemoryState | null,
+  currentFlow: TaskMemoryState | null,
 ) {
-  const parts = [summary, nextStep, explanation, reminderMessage];
-  if (savedPreferences?.length) {
-    parts.push(`I saved: ${savedPreferences.join(", ")}.`);
+  return taskMemory || currentFlow || null;
+}
+
+function parseScheduledAt(value?: string) {
+  if (!value) {
+    return null;
   }
 
-  return parts.filter(Boolean).join(" ");
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+}
+
+async function runDefaultCalendarAction(input: {
+  action: CalendarActionPlan;
+  appointment?: AppointmentContext | null;
+}): Promise<CalendarExecutionResult> {
+  if (input.action.action === "update") {
+    if (!input.action.eventId) {
+      throw new Error("calendar update requires eventId");
+    }
+
+    const updatedId = await updateAppointment(input.action.eventId, {
+      title: input.action.title,
+      startTime: parseScheduledAt(input.action.scheduledAt) || undefined,
+      durationMinutes: input.action.durationMinutes,
+      notes: input.action.notes,
+      location: input.action.location ?? undefined,
+    });
+
+    return {
+      calendarEvent: {
+        action: "update",
+        eventId: updatedId,
+        title: input.action.title || input.appointment?.summary || "Calendar event",
+        scheduledAt: input.action.scheduledAt,
+        durationMinutes: input.action.durationMinutes,
+      },
+      appointment: input.appointment ?? null,
+    };
+  }
+
+  const scheduledAt = parseScheduledAt(input.action.scheduledAt);
+  if (!scheduledAt) {
+    throw new Error("calendar create requires scheduledAt");
+  }
+
+  const eventId = await createAppointment(
+    input.action.title || "Calendar event",
+    scheduledAt,
+    input.action.durationMinutes || 60,
+    input.action.notes,
+    input.action.location ?? null,
+  );
+
+  return {
+    calendarEvent: {
+      action: "create",
+      eventId,
+      title: input.action.title || "Calendar event",
+      scheduledAt: scheduledAt.toISOString(),
+      durationMinutes: input.action.durationMinutes || 60,
+    },
+    appointment: input.appointment ?? null,
+  };
 }
 
 export async function POST(request: Request) {
@@ -71,19 +168,8 @@ export async function handleChatRequest(
     if (!message) {
       return Response.json({ error: "message is required" }, { status: 400 });
     }
-    const normalizedTaskMemory = normalizeTaskMemoryInput(body.taskMemory);
-    const routingInput: CopilotRequest = {
-      mode: "auto",
-      query: message,
-      url: body.url,
-      pageTitle: body.pageTitle,
-      visibleText: body.visibleText,
-      pageSummary: body.pageSummary,
-    };
-    const intent = routeIntent(routingInput);
-    const shouldOrchestrate =
-      intent === "scam_check" || shouldUseBrowserUse(routingInput, intent);
 
+    const normalizedTaskMemory = normalizeTaskMemoryInput(body.taskMemory);
     const cookieStore = deps.userContext ? null : await cookies();
     const userContext =
       deps.userContext ?? (await loadUserContextFromCookies(cookieStore!));
@@ -105,76 +191,23 @@ export async function handleChatRequest(
         : Promise.resolve({ data: null as unknown } as { data: unknown });
 
     const [{ data }, currentFlow] = await Promise.all([appointmentPromise, currentFlowPromise]);
+    const taskMemory = resolveTaskMemory(normalizedTaskMemory, currentFlow);
 
     if (!appointment && data) {
       appointment = buildAppointmentContextFromRow(data as Record<string, unknown>, { source: "supabase" });
     }
 
-    if (!shouldOrchestrate) {
-      const generateReply =
-        deps.generateGeneralChatReply ?? generateGeneralChatReply;
-      const reply = await generateReply({
-        query: message,
-        url: body.url,
-        pageTitle: body.pageTitle,
-        visibleText: body.visibleText,
-        pageSummary: body.pageSummary,
-        taskMemory: normalizedTaskMemory,
-        appointment,
-        userProfile: userContext.profile,
-        userContextEntries: userContext.entries,
-      });
-
-      const savedPreferences = await (deps.persistPreferenceSignals ?? persistPreferenceSignals)(
-        userId,
-        message,
-        userContext.profile,
-      );
-
-      return Response.json({
-        mode: "chat",
-        message: reply.message,
-        summary: reply.message,
-        appointment,
-        saved_preferences: savedPreferences,
-      });
-    }
-
-    const orchestrateCopilot =
-      deps.orchestrateCopilot ??
-      (await import("../../../lib/orchestrator")).orchestrateCopilot;
-    const response = await orchestrateCopilot({
-      mode: "auto",
-      query: message,
-      url: body.url,
-      pageTitle: body.pageTitle,
-      visibleText: body.visibleText,
-      pageSummary: body.pageSummary,
-      taskMemory: normalizedTaskMemory,
+    const input = buildExecutionInput(
+      { ...body, message },
+      taskMemory,
       appointment,
-      userProfile: userContext.profile,
-      userContextEntries: userContext.entries,
-      userId,
-    });
+      userContext,
+    );
 
-    const persistMemoryUpdate = deps.persistCopilotMemoryUpdate ?? persistCopilotMemoryUpdate;
-    const taskMemory = await persistMemoryUpdate({
-      userId,
-      response,
-      currentFlow,
-      taskMemory: normalizedTaskMemory,
-      appointment,
-      currentUrl: body.url,
-      pageTitle: body.pageTitle,
-    });
-
-    const reminder = appointment
-      ? buildAppointmentReminder({
-          appointment,
-          profile: userContext.profile,
-          entries: userContext.entries,
-        })
-      : null;
+    const classify = deps.classifyChatIntent ?? classifyChatIntent;
+    const planResponse = deps.generateChatPlan ?? generateChatPlan;
+    const intentResult = await classify(input);
+    const plan = await planResponse({ ...input, intent: intentResult.intent });
 
     const savedPreferences = await (deps.persistPreferenceSignals ?? persistPreferenceSignals)(
       userId,
@@ -182,28 +215,56 @@ export async function handleChatRequest(
       userContext.profile,
     );
 
+    if (intentResult.intent === "calendar_action" && plan.calendarAction) {
+      try {
+        const execute = deps.runCalendarAction ?? runDefaultCalendarAction;
+        const calendarResult = await execute({
+          action: plan.calendarAction,
+          appointment,
+        });
+
+        return Response.json({
+          mode: "appointment",
+          ...plan,
+          calendarEvent: calendarResult.calendarEvent,
+          appointment: calendarResult.appointment ?? appointment,
+          saved_preferences: savedPreferences,
+        });
+      } catch {
+        return Response.json({
+          mode: "appointment",
+          ...plan,
+          appointment,
+          saved_preferences: savedPreferences,
+        });
+      }
+    }
+
+    const modeByIntent: Record<ChatIntent, string> = {
+      basic_chat: "chat",
+      calendar_action: "appointment",
+      page_security: "scam_check",
+      current_stage: "memory_recall",
+      next_stage: "memory_recall",
+    };
+
     return Response.json({
-      ...response,
+      mode: modeByIntent[intentResult.intent],
+      ...plan,
       appointment,
-      reminder,
-      task_memory: taskMemory,
       saved_preferences: savedPreferences,
-      message: buildChatMessage(
-        response.summary,
-        response.nextStep,
-        response.explanation,
-        reminder?.message,
-        savedPreferences,
-      ),
     });
   } catch (error) {
     console.error("Chat route error:", error);
     return Response.json(
       {
+        mode: "chat",
         summary: "I had a small problem.",
         nextStep: "Please try again in a moment.",
         explanation:
           "I’m having trouble reading the message right now. Please try again in a moment.",
+        riskLevel: "uncertain",
+        suspiciousSignals: [],
       },
       { status: 500 },
     );

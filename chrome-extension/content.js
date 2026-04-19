@@ -1,5 +1,3 @@
-const API_BASE = 'http://localhost:3000';
-
 // ─── Danger modal ─────────────────────────────────────────────────────────────
 
 function getAlertDismissKey(url) {
@@ -121,7 +119,194 @@ function showSafeStepAlert({ tone, explanation, bullets }) {
   });
 }
 
-// ─── Floating voice-chat widget (Shadow DOM for full isolation) ───────────────
+// ─── Right-side page prompt ──────────────────────────────────────────────────
+
+function getPromptDismissKey(url) {
+  return `pagePromptDismissed:${url}`;
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+async function isPromptDismissed(url) {
+  if (!url) return false;
+  const cached = await chrome.storage.session.get(getPromptDismissKey(url)).catch(() => ({}));
+  return Boolean(cached[getPromptDismissKey(url)]);
+}
+
+async function dismissPromptForPage(url) {
+  if (!url) return;
+  await chrome.storage.session.set({ [getPromptDismissKey(url)]: true }).catch(() => {});
+}
+
+function showSafeStepPrompt({ tone, title, nextStep, explanation, bullets, url }) {
+  if (document.getElementById('safestep-page-prompt')) return;
+
+  const accent = tone === 'danger' ? '#dc2626' : tone === 'warning' ? '#d97706' : '#1a6fad';
+  const tint = tone === 'danger' ? '#fef2f2' : tone === 'warning' ? '#fffbeb' : '#f0f7ff';
+  const badgedText = tone === 'danger'
+    ? 'Careful'
+    : tone === 'warning'
+      ? 'Need a check'
+      : 'Next step';
+
+  if (!document.getElementById('safestep-page-prompt-style')) {
+    const style = document.createElement('style');
+    style.id = 'safestep-page-prompt-style';
+    style.textContent = `
+      @keyframes ss-slide-right {
+        from { opacity: 0; transform: translateX(24px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'safestep-page-prompt';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 96px;
+    right: 24px;
+    z-index: 2147483646;
+    width: min(390px, calc(100vw - 32px));
+    pointer-events: none;
+    font-family: system-ui, -apple-system, sans-serif;
+  `;
+
+  const bulletsHtml = bullets && bullets.length
+    ? `<ul style="margin:14px 0 0;padding-left:20px;font-size:15px;line-height:1.65;color:#334155;">
+        ${bullets.map(b => `<li>${escapeHtml(b)}</li>`).join('')}
+      </ul>`
+    : '';
+
+  overlay.innerHTML = `
+    <div style="
+      pointer-events: auto;
+      background: rgba(255,255,255,0.98);
+      border: 1px solid rgba(148,163,184,0.24);
+      border-left: 5px solid ${accent};
+      border-radius: 22px;
+      box-shadow: 0 18px 50px rgba(15,23,42,0.18);
+      overflow: hidden;
+      animation: ss-slide-right 220ms ease-out;
+    ">
+      <div style="
+        padding: 14px 16px 12px;
+        background: linear-gradient(180deg, ${tint}, rgba(255,255,255,0.96));
+        border-bottom: 1px solid rgba(148,163,184,0.18);
+      ">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">
+          <span style="
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            padding:5px 10px;
+            border-radius:999px;
+            font-size:12px;
+            font-weight:700;
+            color:${accent};
+            background:${tint};
+            border:1px solid rgba(148,163,184,0.18);
+          ">SafeStep • ${badgedText}</span>
+          <button id="safestep-page-prompt-close" style="
+            border:none;
+            background:transparent;
+            color:#64748b;
+            font-size:20px;
+            line-height:1;
+            cursor:pointer;
+            padding:0;
+          " aria-label="Dismiss this suggestion">×</button>
+        </div>
+        <h2 style="margin:0;color:#0f172a;font-size:22px;line-height:1.25;font-weight:900;letter-spacing:-0.3px;">
+          ${escapeHtml(title)}
+        </h2>
+        <p style="margin:10px 0 0;color:#334155;font-size:16px;line-height:1.65;font-weight:500;">
+          ${escapeHtml(explanation)}
+        </p>
+      </div>
+      <div style="padding: 14px 16px 16px;">
+        <div style="
+          margin:0 0 10px;
+          color:#0f172a;
+          font-size:17px;
+          line-height:1.55;
+          font-weight:800;
+        ">${escapeHtml(nextStep)}</div>
+        ${bulletsHtml}
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button id="safestep-page-prompt-open" style="
+            flex:1;
+            min-height:46px;
+            border:none;
+            border-radius:14px;
+            background:${accent};
+            color:#fff;
+            font-size:16px;
+            font-weight:800;
+            cursor:pointer;
+            box-shadow:0 8px 20px rgba(26,111,173,0.18);
+          ">Open SafeStep</button>
+          <button id="safestep-page-prompt-hide" style="
+            min-height:46px;
+            padding:0 14px;
+            border:1px solid rgba(148,163,184,0.28);
+            border-radius:14px;
+            background:#fff;
+            color:#334155;
+            font-size:15px;
+            font-weight:700;
+            cursor:pointer;
+          ">Not now</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const closePrompt = async () => {
+    await dismissPromptForPage(url || location.href);
+    overlay.remove();
+  };
+
+  document.getElementById('safestep-page-prompt-close').onclick = () => {
+    void closePrompt();
+  };
+  document.getElementById('safestep-page-prompt-hide').onclick = () => {
+    void closePrompt();
+  };
+  document.getElementById('safestep-page-prompt-open').onclick = () => {
+    if (!shadow) {
+      createWidget();
+    }
+    togglePanel();
+    void closePrompt();
+  };
+
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) {
+      void closePrompt();
+    }
+  });
+
+  if (window.speechSynthesis) {
+    const msg = new SpeechSynthesisUtterance(nextStep || explanation || title || 'SafeStep has a suggestion for you.');
+    msg.rate = 0.9;
+    msg.volume = 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(msg);
+  }
+}
+
+// ─── Floating widget shell ───────────────────────────────────────────────────
 
 let shadow = null;
 let widgetOpen = false;
@@ -138,6 +323,7 @@ const WIDGET_CSS = `
     right: 24px !important;
     z-index: 2147483647 !important;
     display: block !important;
+    overflow: visible !important;
     font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   }
 
@@ -157,6 +343,7 @@ const WIDGET_CSS = `
     transition: transform 180ms ease, background 150ms ease;
     touch-action: manipulation;
   }
+
   #fab:hover { background: #155d94; transform: scale(1.08); }
   #fab:active { transform: scale(0.94); }
   #fab svg { width: 26px; height: 26px; stroke: #fff; fill: none; }
@@ -642,6 +829,21 @@ chrome.runtime.sendMessage({
   title: document.title,
   content: document.body?.innerText?.slice(0, 4000) || '',
 });
+
+// ─── Boot widget ──────────────────────────────────────────────────────────────
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', createWidget);
+} else {
+  createWidget();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => sendPageContext(true), { once: true });
+  window.addEventListener('load', () => sendPageContext(true), { once: true });
+} else {
+  sendPageContext(true);
+}
 
 // ─── Boot widget ──────────────────────────────────────────────────────────────
 

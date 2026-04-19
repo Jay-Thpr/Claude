@@ -10,6 +10,7 @@ interface EmbeddedBrowserFrameProps {
   pageTitle?: string;
   screenshotB64?: string | null;
   status?: BrowserStatus;
+  onOpenAssistant?: () => void;
 }
 
 function normalizeFrameUrl(rawUrl: string) {
@@ -52,6 +53,7 @@ export default function EmbeddedBrowserFrame({
   pageTitle,
   screenshotB64 = null,
   status = "idle",
+  onOpenAssistant,
 }: EmbeddedBrowserFrameProps) {
   const frameUrl = normalizeFrameUrl(currentUrl);
   const frameLabel = pageTitle?.trim() || "SafeStep browser";
@@ -77,15 +79,25 @@ export default function EmbeddedBrowserFrame({
                     ? "status-error"
                     : "status-idle"
             }`}
-          >
-            {status === "running"
-              ? "Following steps"
-              : status === "paused"
-                ? "Paused"
-                : status === "error"
-                  ? "Error"
-                  : "Ready"}
+            >
+              {status === "running"
+                ? "Following steps"
+                : status === "paused"
+                  ? "Paused"
+                  : status === "error"
+                    ? "Error"
+                    : "Ready"}
           </span>
+          {onOpenAssistant ? (
+            <button
+              type="button"
+              onClick={onOpenAssistant}
+              className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-white px-3 py-2 text-sm font-semibold text-primary-700 transition hover:border-primary-300 hover:bg-primary-50"
+            >
+              <span aria-hidden="true">🦮</span>
+              Open assistant
+            </button>
+          ) : null}
         </div>
       </div>
 

@@ -17,6 +17,7 @@ interface BrowserTaskAreaProps {
   onUrlChange: (url: string) => void;
   onPageTitleChange: (title: string) => void;
   onStatusChange?: (status: BrowserTaskStatus) => void;
+  onOpenAssistant?: () => void;
 }
 
 export type BrowserTaskStatus = "idle" | "running" | "paused" | "error";
@@ -115,6 +116,7 @@ const BrowserTaskArea = forwardRef<BrowserTaskAreaHandle, BrowserTaskAreaProps>(
       onUrlChange,
       onPageTitleChange,
       onStatusChange,
+      onOpenAssistant,
     }: BrowserTaskAreaProps,
     ref,
   ) {
@@ -250,6 +252,7 @@ const BrowserTaskArea = forwardRef<BrowserTaskAreaHandle, BrowserTaskAreaProps>(
           pageTitle={currentPageTitle}
           screenshotB64={screenshot}
           status={status}
+          onOpenAssistant={onOpenAssistant}
         />
       </div>
     );

@@ -1,4 +1,5 @@
 const API_BASE = 'http://localhost:3000';
+const ACTIVE_TAB_KEY = 'safestep-active-tab';
 
 // ─── Context (fetched once on open) ──────────────────────────────────────────
 
@@ -8,6 +9,7 @@ let pageContent = '';
 let appointment = null;
 let taskMemory = null;
 let isSending = false;
+let alertBannerDismissed = false;
 
 // ─── Voice output (TTS) ──────────────────────────────────────────────────────
 
@@ -74,11 +76,21 @@ function toggleRecording() {
 // ─── Tone detection ───────────────────────────────────────────────────────────
 
 function deriveTone(value) {
+  if (isGovernmentUrl(pageUrl)) return 'safe';
   const v = (value || '').toLowerCase();
   if (v === 'risky') return 'danger';
   if (v === 'uncertain' || v === 'not-sure') return 'warning';
   if (v === 'safe') return 'safe';
   return 'neutral';
+}
+
+function isGovernmentUrl(url) {
+  if (!url) return false;
+  try {
+    return new URL(url).hostname.toLowerCase().endsWith('.gov');
+  } catch {
+    return false;
+  }
 }
 
 function getAlertDismissKey(url) {
@@ -91,6 +103,14 @@ async function isAlertDismissed(url) {
   return Boolean(cached[getAlertDismissKey(url)]);
 }
 
+async function dismissAlertBanner() {
+  if (!pageUrl) return;
+  alertBannerDismissed = true;
+  await chrome.storage.session.set({ [getAlertDismissKey(pageUrl)]: true }).catch(() => {});
+  const banner = document.getElementById('alert-banner');
+  banner?.classList.add('hidden');
+}
+
 // ─── State helpers ────────────────────────────────────────────────────────────
 
 function showState(id) {
@@ -100,13 +120,41 @@ function showState(id) {
   document.getElementById(id).classList.remove('hidden');
 }
 
+function setThinking(active, text) {
+  const state = document.getElementById('thinking-state');
+  const label = document.getElementById('thinking-text');
+  if (!state) return;
+
+  if (label && typeof text === 'string' && text.trim()) {
+    label.textContent = text;
+  } else if (label) {
+    label.textContent = 'SafeStep is thinking…';
+  }
+
+  state.classList.toggle('hidden', !active);
+}
+
 // ─── Tab switching ────────────────────────────────────────────────────────────
 
-function switchTab(tab) {
+function applyTab(tab) {
   document.getElementById('panel-appointments').classList.toggle('hidden', tab !== 'appointments');
   document.getElementById('panel-chat').classList.toggle('hidden', tab !== 'chat');
   document.getElementById('tab-appointments').classList.toggle('active', tab === 'appointments');
   document.getElementById('tab-chat').classList.toggle('active', tab === 'chat');
+}
+
+async function switchTab(tab, persist = true) {
+  applyTab(tab);
+
+  if (persist) {
+    await chrome.storage.session.set({ [ACTIVE_TAB_KEY]: tab }).catch(() => {});
+  }
+}
+
+async function loadActiveTab() {
+  const cached = await chrome.storage.session.get(ACTIVE_TAB_KEY).catch(() => ({}));
+  const storedTab = cached[ACTIVE_TAB_KEY] === 'chat' ? 'chat' : 'appointments';
+  applyTab(storedTab);
 }
 
 // ─── Appointments ─────────────────────────────────────────────────────────────
@@ -193,6 +241,7 @@ async function handleSafe() {
   if (isSending) return;
   isSending = true;
   setActionButtonsDisabled(true);
+  setThinking(true, 'Checking whether this page is safe…');
   appendMessage('Is this safe?', 'user');
 
   try {
@@ -210,6 +259,7 @@ async function handleSafe() {
   } finally {
     isSending = false;
     setActionButtonsDisabled(false);
+    setThinking(false);
   }
 }
 
@@ -217,6 +267,7 @@ async function handleNext() {
   if (isSending) return;
   isSending = true;
   setActionButtonsDisabled(true);
+  setThinking(true, 'Looking at the next step…');
   appendMessage('What do I do next?', 'user');
 
   try {
@@ -237,7 +288,6 @@ async function handleNext() {
     const data = await res.json();
     if (data.task_memory) {
       taskMemory = data.task_memory;
-      chrome.storage.local.set({ safestep_memory: data.task_memory }).catch(() => {});
     }
     const tone = deriveTone(data.riskLevel);
     appendMessage(data.message || data.explanation || data.next_step || 'I am ready to help.', 'assistant', tone);
@@ -246,6 +296,7 @@ async function handleNext() {
   } finally {
     isSending = false;
     setActionButtonsDisabled(false);
+    setThinking(false);
   }
 }
 

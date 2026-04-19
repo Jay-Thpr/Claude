@@ -202,8 +202,8 @@ function buildContext(
   const pageText = [input.pageTitle, input.query, input.visibleText, input.pageSummary, input.url]
     .filter(Boolean)
     .join(" ");
-  const suspiciousSignals = extractSuspiciousSignals(pageText);
-  const riskLevel = assessRiskLevel(pageText);
+  const suspiciousSignals = extractSuspiciousSignals(pageText, input.url);
+  const riskLevel = assessRiskLevel(pageText, input.url);
   return {
     userProfile,
     userContextEntries,
@@ -249,7 +249,7 @@ export async function orchestrateCopilot(input: CopilotRequest): Promise<Copilot
 
   if (context.intent === "scam_check" && context.riskLevel === "risky") {
     return normalizeCopilotResponse(
-      fallbackSafetyResponse(textToAnalyze, context.intent),
+      fallbackSafetyResponse(textToAnalyze, context.intent, input.url),
       context.intent,
     );
   }
@@ -290,7 +290,7 @@ export async function orchestrateCopilot(input: CopilotRequest): Promise<Copilot
     };
   } catch (error) {
     console.error("Copilot orchestration failed:", error);
-    const fallback = fallbackSafetyResponse(textToAnalyze, context.intent);
+    const fallback = fallbackSafetyResponse(textToAnalyze, context.intent, input.url);
     return normalizeCopilotResponse(
       {
         ...fallback,

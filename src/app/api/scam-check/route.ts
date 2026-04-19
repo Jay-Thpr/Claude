@@ -31,6 +31,18 @@ type ScamCheckDependencies = {
 
 const DEMO_USER_ID = "demo-user-001";
 
+function isGovernmentUrl(url?: string | null) {
+  if (!url) {
+    return false;
+  }
+
+  try {
+    return new URL(url).hostname.toLowerCase().endsWith(".gov");
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
   return handleScamCheckRequest(request);
 }
@@ -64,11 +76,13 @@ export async function handleScamCheckRequest(
     });
 
     const classification: ScamCheckResponse["classification"] =
-      response.riskLevel === "safe"
+      isGovernmentUrl(url)
         ? "safe"
-        : response.riskLevel === "risky"
-          ? "risky"
-          : "not-sure";
+        : response.riskLevel === "safe"
+          ? "safe"
+          : response.riskLevel === "risky"
+            ? "risky"
+            : "not-sure";
 
     const isRisky = classification === "risky";
     const blocked = isRisky && (actions?.blockOnRisky ?? false);
