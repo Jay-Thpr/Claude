@@ -190,16 +190,16 @@ function makeTaskStartRequest(body) {
         body: JSON.stringify(body),
     });
 }
-(0, node_test_1.default)("task/start: uses fallback plan when Gemini throws", async () => {
-    const res = await (0, route_3.handleTaskStartRequest)(makeTaskStartRequest({ intent: "refill my prescription", url: "https://myhealth.ucsd.edu" }), { runGeminiPrompt: async () => { throw new Error("no API key"); } });
+(0, node_test_1.default)("task/start: uses fallback plan when Anthropic throws", async () => {
+    const res = await (0, route_3.handleTaskStartRequest)(makeTaskStartRequest({ intent: "refill my prescription", url: "https://myhealth.ucsd.edu" }), { runAnthropicPrompt: async () => { throw new Error("no API key"); } });
     strict_1.default.equal(res.status, 200);
     const data = await res.json();
     strict_1.default.ok(data.steps.length >= 1);
     strict_1.default.ok(data.announcement.length > 0);
     strict_1.default.equal(data.totalSteps, data.steps.length);
 });
-(0, node_test_1.default)("task/start: parses valid Gemini JSON response into step plan", async () => {
-    const geminiResponse = JSON.stringify({
+(0, node_test_1.default)("task/start: parses valid Anthropic JSON response into step plan", async () => {
+    const anthropicResponse = JSON.stringify({
         steps: [
             { index: 0, instruction: "Click 'Refill'", voiceAnnouncement: "First, find the Refill button." },
             { index: 1, instruction: "Select your medication", voiceAnnouncement: "Now choose which medication to refill." },
@@ -207,21 +207,21 @@ function makeTaskStartRequest(body) {
         ],
         openingAnnouncement: "Let's refill your prescription together.",
     });
-    const res = await (0, route_3.handleTaskStartRequest)(makeTaskStartRequest({ intent: "refill my prescription", url: "https://myhealth.ucsd.edu" }), { runGeminiPrompt: async () => geminiResponse });
+    const res = await (0, route_3.handleTaskStartRequest)(makeTaskStartRequest({ intent: "refill my prescription", url: "https://myhealth.ucsd.edu" }), { runAnthropicPrompt: async () => anthropicResponse });
     strict_1.default.equal(res.status, 200);
     const data = await res.json();
     strict_1.default.equal(data.totalSteps, 3);
     strict_1.default.equal(data.steps[0].instruction, "Click 'Refill'");
     strict_1.default.match(data.announcement, /refill your prescription/i);
 });
-(0, node_test_1.default)("task/start: falls back when Gemini returns malformed JSON", async () => {
-    const res = await (0, route_3.handleTaskStartRequest)(makeTaskStartRequest({ intent: "check my messages", url: "https://myhealth.ucsd.edu" }), { runGeminiPrompt: async () => "Sorry, I cannot help with that right now." });
+(0, node_test_1.default)("task/start: falls back when Anthropic returns malformed JSON", async () => {
+    const res = await (0, route_3.handleTaskStartRequest)(makeTaskStartRequest({ intent: "check my messages", url: "https://myhealth.ucsd.edu" }), { runAnthropicPrompt: async () => "Sorry, I cannot help with that right now." });
     strict_1.default.equal(res.status, 200);
     const data = await res.json();
     strict_1.default.ok(data.steps.length >= 1);
 });
 (0, node_test_1.default)("task/start: falls back when intent or url is missing", async () => {
-    const res = await (0, route_3.handleTaskStartRequest)(makeTaskStartRequest({ url: "https://example.com" }), { runGeminiPrompt: async () => { throw new Error("should not be called"); } });
+    const res = await (0, route_3.handleTaskStartRequest)(makeTaskStartRequest({ url: "https://example.com" }), { runAnthropicPrompt: async () => { throw new Error("should not be called"); } });
     strict_1.default.equal(res.status, 200);
     const data = await res.json();
     strict_1.default.ok(data.steps.length >= 1);

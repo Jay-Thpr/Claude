@@ -1,6 +1,6 @@
 """
 Browser Use Agent for SafeStep
-Runs a browser-use agent with Gemini and streams step events via a callback.
+Runs a browser-use agent with Anthropic-key compatibility and streams step events via a callback.
 """
 
 from __future__ import annotations
@@ -65,10 +65,15 @@ def _resolve_model_name(raw_name: str | None, default_name: str) -> str:
     return MODEL_ALIASES.get(model_name, model_name)
 
 
-def _build_llm() -> tuple[ChatGoogle, ChatGoogle]:
-    api_key = os.environ.get("GEMINI_API_KEY")
+def _resolve_api_key() -> str:
+    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is not set.")
+        raise RuntimeError("ANTHROPIC_API_KEY is not set.")
+    return api_key
+
+
+def _build_llm() -> tuple[ChatGoogle, ChatGoogle]:
+    api_key = _resolve_api_key()
 
     model_name = _resolve_model_name(os.environ.get("SAFESTEP_BROWSER_MODEL"), PRIMARY_BROWSER_MODEL)
     fallback_model_name = _resolve_model_name(

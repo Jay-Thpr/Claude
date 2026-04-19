@@ -158,20 +158,25 @@ async def get_status():
 
 @app.get("/api/voice-runtime/health")
 async def get_voice_runtime_health():
-    """Return Gemini/Twilio media bridge readiness for self-call testing."""
+    """Return Anthropic/Twilio media bridge readiness for self-call testing."""
     return {
         "status": "ok",
         "backend_url": os.environ.get("BACKEND_PUBLIC_BASE_URL"),
         "media_stream_url": os.environ.get("TWILIO_MEDIA_STREAM_URL"),
         "media_stream_endpoint_path": "/ws/twilio-media-stream",
-        "gemini_api_key_configured": bool(os.environ.get("GEMINI_API_KEY")),
-        "voice_events_secret_configured": bool(os.environ.get("TWILIO_VOICE_EVENTS_SECRET")),
-        "twilio_gemini_live_model": os.environ.get(
-            "TWILIO_GEMINI_LIVE_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025"
+        "anthropic_api_key_configured": bool(
+            os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("GEMINI_API_KEY")
         ),
-        "twilio_gemini_voice": os.environ.get("TWILIO_GEMINI_VOICE", "Kore"),
+        "voice_events_secret_configured": bool(os.environ.get("TWILIO_VOICE_EVENTS_SECRET")),
+        "twilio_anthropic_live_model": os.environ.get(
+            "TWILIO_ANTHROPIC_LIVE_MODEL",
+            os.environ.get("TWILIO_GEMINI_LIVE_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025"),
+        ),
+        "twilio_anthropic_voice": os.environ.get(
+            "TWILIO_ANTHROPIC_VOICE", os.environ.get("TWILIO_GEMINI_VOICE", "Kore")
+        ),
         "ready_for_live_media_stream": bool(
-            os.environ.get("GEMINI_API_KEY")
+            (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("GEMINI_API_KEY"))
             and os.environ.get("TWILIO_VOICE_EVENTS_SECRET")
             and os.environ.get("TWILIO_MEDIA_STREAM_URL")
         ),
@@ -180,7 +185,7 @@ async def get_voice_runtime_health():
 
 @app.websocket("/ws/twilio-media-stream")
 async def twilio_media_stream(websocket: WebSocket):
-    """Bidirectional media bridge between Twilio Media Streams and Gemini Live."""
+    """Bidirectional media bridge between Twilio Media Streams and Anthropic Live."""
     from voice_runtime import bridge_twilio_to_gemini
 
     try:

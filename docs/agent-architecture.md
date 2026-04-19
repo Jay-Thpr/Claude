@@ -98,6 +98,7 @@ POST /api/browser-agent
 - **Never auto-submit forms** — the profile context always includes an explicit IMPORTANT line telling the agent to pause before submitting, confirming, or sharing personal info.
 - **Graceful degradation** — if `scheduleResult: true` or `calendarAction: "create"` but the agent finds a phone number instead of a bookable slot, `scheduled` is null and the useful info is still returned in `result`.
 - **Model**: `gemini-3.1-flash-lite-preview` via `SAFESTEP_BROWSER_MODEL` env var in `backend/.env`.
+- **API key**: `ANTHROPIC_API_KEY` in `backend/.env` for the browser-use LLM client. If older runtime code still reads `GEMINI_API_KEY`, set both during migration.
 
 ---
 

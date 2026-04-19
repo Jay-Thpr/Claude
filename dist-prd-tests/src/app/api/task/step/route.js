@@ -56,8 +56,10 @@ async function POST(request) {
         nextStepIndex,
         announcement: nextStep.voiceAnnouncement,
         instruction: nextStep.instruction,
+        pageSummary: nextStep.pageSummary ?? nextStep.instruction,
+        nextButton: nextStep.nextButton ?? "Look for the next button or link on the page.",
         memoryUpdate: {
-            currentTask: "Task in progress",
+            currentTask: nextStep.pageSummary || nextStep.instruction || "Task in progress",
             lastStep: currentStep?.instruction ?? `Completed step ${safeCurrentIndex + 1}`,
         },
     });

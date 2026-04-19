@@ -82,6 +82,24 @@ def _required_env(name: str) -> str:
     return value
 
 
+def _resolve_api_key() -> str:
+    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY is not set.")
+    return api_key
+
+
+def _resolve_live_model() -> str:
+    return os.environ.get(
+        "TWILIO_ANTHROPIC_LIVE_MODEL",
+        os.environ.get("TWILIO_GEMINI_LIVE_MODEL", DEFAULT_MODEL),
+    )
+
+
+def _resolve_live_voice() -> str:
+    return os.environ.get("TWILIO_ANTHROPIC_VOICE", os.environ.get("TWILIO_GEMINI_VOICE", DEFAULT_VOICE))
+
+
 def _build_live_system_instruction(context: ProviderCallContext) -> str:
     callback_line = (
         f" If the office needs a callback number, use {context.callback_number}."
@@ -256,7 +274,7 @@ def _build_outcome_payload(context: ProviderCallContext) -> dict[str, Any]:
         "voicemail_detected": voicemail_detected,
         "transcript_excerpt": transcript or None,
         "outcome_summary": " ".join(summary_parts),
-        "status_message": "Gemini voice runtime finished.",
+        "status_message": "Anthropic voice runtime finished.",
     }
 
 
@@ -347,9 +365,9 @@ async def bridge_twilio_to_gemini(websocket: WebSocket) -> None:
     loop = asyncio.get_running_loop()
     connect_started_at = loop.time()
 
-    client = genai.Client(api_key=_required_env("GEMINI_API_KEY"))
-    model = os.environ.get("TWILIO_GEMINI_LIVE_MODEL", DEFAULT_MODEL)
-    voice_name = os.environ.get("TWILIO_GEMINI_VOICE", DEFAULT_VOICE)
+    client = genai.Client(api_key=_resolve_api_key())
+    model = _resolve_live_model()
+    voice_name = _resolve_live_voice()
 
     config = {
         "response_modalities": ["AUDIO"],
@@ -375,18 +393,18 @@ async def bridge_twilio_to_gemini(websocket: WebSocket) -> None:
     }
 
     stop_event = asyncio.Event()
-    # Tracks whether Gemini is actively sending audio to the phone.
-    # Used to gate echo (Gemini's own voice reflecting back through the mic).
+    # Tracks whether the live model is actively sending audio to the phone.
+    # Used to gate echo from the model's own voice reflecting back through the mic.
     gemini_speaking = asyncio.Event()
 
     async with client.aio.live.connect(model=model, config=config) as session:
         await _post_voice_event(
             context.session_id,
-            {"status_message": "Gemini voice runtime connected to the Twilio media stream."},
+            {"status_message": "Anthropic voice runtime connected to the Twilio media stream."},
         )
 
         async def twilio_to_gemini() -> None:
-            # When Gemini is speaking, its audio echoes back through the phone mic.
+            # When the model is speaking, its audio echoes back through the phone mic.
             # Gate inbound audio at 2x the normal threshold to suppress that echo
             # while still allowing louder barge-in speech to pass through.
             echo_gate = SPEECH_RMS_THRESHOLD * 2
@@ -423,7 +441,7 @@ async def bridge_twilio_to_gemini(websocket: WebSocket) -> None:
                                 context.session_id,
                                 {
                                     "status_message": (
-                                        f"Forwarding caller audio to Gemini. "
+                                        f"Forwarding caller audio to Anthropic runtime. "
                                         f"Chunks: {context.inbound_media_chunks}."
                                     ),
                                     "transcript_excerpt": context.transcript_excerpt(),
@@ -454,7 +472,7 @@ async def bridge_twilio_to_gemini(websocket: WebSocket) -> None:
                 if server_content.input_transcription and server_content.input_transcription.text:
                     heard_provider_speech = True
                     context.append_transcript("Provider", server_content.input_transcription.text)
-                    # Barge-in: caller spoke while Gemini was talking.
+                    # Barge-in: caller spoke while the model was talking.
                     # Clear Twilio's audio queue so voices don't overlap,
                     # then drop the speaking flag so echo gating stops.
                     if gemini_speaking.is_set() and context.stream_sid:
@@ -464,7 +482,7 @@ async def bridge_twilio_to_gemini(websocket: WebSocket) -> None:
                         gemini_speaking.clear()
                     await _push_transcript_update(
                         context,
-                        status_message="Gemini transcribed caller speech.",
+                        status_message="Anthropic runtime transcribed caller speech.",
                     )
 
                 if server_content.output_transcription and server_content.output_transcription.text:
@@ -477,7 +495,7 @@ async def bridge_twilio_to_gemini(websocket: WebSocket) -> None:
                         )
                         await _push_transcript_update(
                             context,
-                            status_message="Gemini generated a spoken response.",
+                            status_message="Anthropic runtime generated a spoken response.",
                         )
 
                 model_turn = server_content.model_turn
@@ -499,7 +517,7 @@ async def bridge_twilio_to_gemini(websocket: WebSocket) -> None:
                                     context.session_id,
                                     {
                                         "status_message": (
-                                            "Suppressed early Gemini audio during startup quiet window."
+                                            "Suppressed early Anthropic audio during startup quiet window."
                                         )
                                     },
                                 )
@@ -523,7 +541,7 @@ async def bridge_twilio_to_gemini(websocket: WebSocket) -> None:
                                 context.session_id,
                                 {
                                     "status_message": (
-                                        f"Streaming Gemini audio back to Twilio. "
+                                        f"Streaming Anthropic audio back to Twilio. "
                                         f"Chunks sent: {context.outbound_audio_chunks}."
                                     ),
                                     "transcript_excerpt": context.transcript_excerpt(),
@@ -555,8 +573,8 @@ async def bridge_twilio_to_gemini(websocket: WebSocket) -> None:
 
     outcome = _build_outcome_payload(context)
     outcome["status_message"] = (
-        "Gemini voice runtime finished. "
+        "Anthropic voice runtime finished. "
         f"Twilio chunks in: {context.inbound_media_chunks}. "
-        f"Gemini audio chunks out: {context.outbound_audio_chunks}."
+        f"Anthropic audio chunks out: {context.outbound_audio_chunks}."
     )
     await _post_voice_event(context.session_id, outcome)

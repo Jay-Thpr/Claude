@@ -38,10 +38,13 @@ type RuntimeStatus = {
   backend_url?: string | null;
   media_stream_url?: string | null;
   media_stream_endpoint_path: string;
-  gemini_api_key_configured: boolean;
+  anthropic_api_key_configured?: boolean;
   voice_events_secret_configured: boolean;
-  twilio_gemini_live_model: string;
-  twilio_gemini_voice: string;
+  twilio_anthropic_live_model?: string;
+  twilio_anthropic_voice?: string;
+  gemini_api_key_configured?: boolean;
+  twilio_gemini_live_model?: string;
+  twilio_gemini_voice?: string;
   ready_for_live_media_stream: boolean;
 };
 
@@ -301,6 +304,14 @@ export default function TwilioCallPanel({
   };
 
   const isActive = session ? ACTIVE_STATUSES.has(session.status) : false;
+  const anthropicLiveModel =
+    runtimeStatus?.twilio_anthropic_live_model ?? runtimeStatus?.twilio_gemini_live_model ?? "Unknown";
+  const anthropicVoice =
+    runtimeStatus?.twilio_anthropic_voice ?? runtimeStatus?.twilio_gemini_voice ?? "Unknown";
+  const anthropicApiKeyConfigured =
+    runtimeStatus?.anthropic_api_key_configured ??
+    runtimeStatus?.gemini_api_key_configured ??
+    false;
 
   return (
     <aside className="call-dock">
@@ -328,14 +339,14 @@ export default function TwilioCallPanel({
           {runtimeStatus ? (
             <div className="call-dock-checklist">
               <p>
-                Gemini Live model: <strong>{runtimeStatus.twilio_gemini_live_model}</strong>
+                Anthropic Live model: <strong>{anthropicLiveModel}</strong>
               </p>
               <p>
-                Gemini voice: <strong>{runtimeStatus.twilio_gemini_voice}</strong>
+                Anthropic voice: <strong>{anthropicVoice}</strong>
               </p>
               <p>
-                Gemini API key:{" "}
-                <strong>{runtimeStatus.gemini_api_key_configured ? "Configured" : "Missing"}</strong>
+                Anthropic API key:{" "}
+                <strong>{anthropicApiKeyConfigured ? "Configured" : "Missing"}</strong>
               </p>
               <p>
                 Voice event secret:{" "}
@@ -410,7 +421,7 @@ export default function TwilioCallPanel({
             type="button"
             className="call-dock-primary"
             onClick={startCall}
-            disabled={isStarting || !runtimeStatus?.gemini_api_key_configured}
+            disabled={isStarting || !anthropicApiKeyConfigured}
           >
             {isStarting ? "Starting..." : "Start Provider Call"}
           </button>

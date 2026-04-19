@@ -35,6 +35,7 @@ export type NextStepGuidanceInput = {
   query?: string;
   url?: string;
   pageTitle?: string;
+  pageSummary?: string;
   visibleText?: string;
   taskMemory?: Record<string, unknown> | null | undefined;
   appointment?: Record<string, unknown> | null | undefined;
@@ -145,7 +146,7 @@ export async function handleNextStepRequest(
         ...response,
         ...browserUse,
         task_memory,
-        message: response.summary || response.explanation || response.nextStep,
+        message: response.nextStep || response.summary || response.explanation,
         next_step: response.nextStep,
       });
     }
@@ -156,12 +157,13 @@ export async function handleNextStepRequest(
     const response = await orchestrateCopilot({
       mode: "guidance",
       query: body.question as string | undefined,
-      url: body.url as string | undefined,
-      pageTitle: body.pageTitle as string | undefined,
-      visibleText: (body.visibleText as string | undefined) || (body.content as string | undefined),
-      taskMemory,
-      appointment,
-    });
+    url: body.url as string | undefined,
+    pageTitle: body.pageTitle as string | undefined,
+    pageSummary: body.pageSummary as string | undefined,
+    visibleText: (body.visibleText as string | undefined) || (body.content as string | undefined),
+    taskMemory,
+    appointment,
+  });
 
     const task_memory = await (deps.persistCopilotMemoryUpdate ?? persistCopilotMemoryUpdate)({
       userId,
@@ -176,7 +178,7 @@ export async function handleNextStepRequest(
     return Response.json({
       ...response,
       task_memory,
-      message: response.summary || response.explanation || response.nextStep,
+      message: response.nextStep || response.summary || response.explanation,
       next_step: response.nextStep,
     });
   } catch (err) {

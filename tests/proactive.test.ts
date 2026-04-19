@@ -256,10 +256,10 @@ function makeTaskStartRequest(body: object): Request {
   });
 }
 
-test("task/start: uses fallback plan when Gemini throws", async () => {
+test("task/start: uses fallback plan when Anthropic throws", async () => {
   const res = await handleTaskStartRequest(
     makeTaskStartRequest({ intent: "refill my prescription", url: "https://myhealth.ucsd.edu" }),
-    { runGeminiPrompt: async () => { throw new Error("no API key"); } },
+    { runAnthropicPrompt: async () => { throw new Error("no API key"); } },
   );
   assert.equal(res.status, 200);
   const data = await res.json() as { steps: unknown[]; announcement: string; totalSteps: number };
@@ -268,8 +268,8 @@ test("task/start: uses fallback plan when Gemini throws", async () => {
   assert.equal(data.totalSteps, data.steps.length);
 });
 
-test("task/start: parses valid Gemini JSON response into step plan", async () => {
-  const geminiResponse = JSON.stringify({
+test("task/start: parses valid Anthropic JSON response into step plan", async () => {
+  const anthropicResponse = JSON.stringify({
     steps: [
       { index: 0, instruction: "Click 'Refill'", voiceAnnouncement: "First, find the Refill button." },
       { index: 1, instruction: "Select your medication", voiceAnnouncement: "Now choose which medication to refill." },
@@ -280,7 +280,7 @@ test("task/start: parses valid Gemini JSON response into step plan", async () =>
 
   const res = await handleTaskStartRequest(
     makeTaskStartRequest({ intent: "refill my prescription", url: "https://myhealth.ucsd.edu" }),
-    { runGeminiPrompt: async () => geminiResponse },
+    { runAnthropicPrompt: async () => anthropicResponse },
   );
   assert.equal(res.status, 200);
   const data = await res.json() as { steps: Array<{ instruction: string }>; announcement: string; totalSteps: number };
@@ -289,10 +289,10 @@ test("task/start: parses valid Gemini JSON response into step plan", async () =>
   assert.match(data.announcement, /refill your prescription/i);
 });
 
-test("task/start: falls back when Gemini returns malformed JSON", async () => {
+test("task/start: falls back when Anthropic returns malformed JSON", async () => {
   const res = await handleTaskStartRequest(
     makeTaskStartRequest({ intent: "check my messages", url: "https://myhealth.ucsd.edu" }),
-    { runGeminiPrompt: async () => "Sorry, I cannot help with that right now." },
+    { runAnthropicPrompt: async () => "Sorry, I cannot help with that right now." },
   );
   assert.equal(res.status, 200);
   const data = await res.json() as { steps: unknown[] };
@@ -302,7 +302,7 @@ test("task/start: falls back when Gemini returns malformed JSON", async () => {
 test("task/start: falls back when intent or url is missing", async () => {
   const res = await handleTaskStartRequest(
     makeTaskStartRequest({ url: "https://example.com" }),
-    { runGeminiPrompt: async () => { throw new Error("should not be called"); } },
+    { runAnthropicPrompt: async () => { throw new Error("should not be called"); } },
   );
   assert.equal(res.status, 200);
   const data = await res.json() as { steps: unknown[] };

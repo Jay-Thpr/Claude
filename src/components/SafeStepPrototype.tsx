@@ -467,6 +467,9 @@ export default function SafeStepPrototype() {
       tone: "neutral",
     },
   ];
+  const latestMessage = messages[0] || null;
+  const assistantPreview =
+    latestMessage?.nextStep || latestMessage?.summary || "Ask for help with the current page, a scam check, or what you were doing.";
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#edf8f6_0%,#f7f4ef_42%,#ebe5db_100%)] text-text-primary">
@@ -835,24 +838,27 @@ export default function SafeStepPrototype() {
                             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
                               {message.mode.replace("_", " ")}
                             </p>
-                            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${riskBadge(message.riskLevel)}`}>
-                              {message.riskLevel || "uncertain"}
-                            </span>
-                          </div>
+                          <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${riskBadge(message.riskLevel)}`}>
+                            {message.riskLevel || "uncertain"}
+                          </span>
+                        </div>
                           <p className="mt-3 text-lg font-semibold text-text-primary">
-                            {message.summary}
+                            {message.nextStep || message.summary}
                           </p>
                           <p className="mt-2 text-base leading-relaxed text-text-secondary">
-                            {message.explanation}
+                            {message.summary}
                           </p>
                           {message.nextStep ? (
                             <div className="mt-3 rounded-2xl bg-primary-50 p-3">
                               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary-700">
-                                Next step
+                                What&apos;s next
                               </p>
                               <p className="mt-1 text-base text-text-primary">{message.nextStep}</p>
                             </div>
                           ) : null}
+                          <p className="mt-3 text-base leading-relaxed text-text-secondary">
+                            {message.explanation}
+                          </p>
                           {message.suspiciousSignals?.length ? (
                             <div className="mt-3 flex flex-wrap gap-2">
                               {message.suspiciousSignals.map((signal) => (
@@ -905,7 +911,7 @@ export default function SafeStepPrototype() {
               <p className="text-base text-text-secondary">
                 {loading
                   ? "Thinking carefully..."
-                  : messages[0]?.summary || "Ask for help with the current page, a scam check, or what you were doing."}
+                  : assistantPreview}
               </p>
               <div className="flex flex-wrap gap-2">
                 {promptButtons.map((button) => (

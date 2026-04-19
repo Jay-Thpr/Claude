@@ -164,11 +164,20 @@ export default function CopilotPanel({
           appointment,
         }),
       });
-      const data = (await res.json()) as { message?: string; explanation?: string; task_memory?: TaskMemoryState | null };
+      const data = (await res.json()) as {
+        message?: string;
+        explanation?: string;
+        next_step?: string;
+        nextStep?: string;
+        task_memory?: TaskMemoryState | null;
+      };
       if (data.task_memory) {
         setTaskMemory(data.task_memory);
       }
-      updateState("Next step", data.message || data.explanation || "I am here to help.");
+      updateState(
+        "Next step",
+        data.next_step || data.nextStep || data.message || data.explanation || "I am here to help.",
+      );
     } catch {
       updateState("Error", "I could not check the next step right now.");
     } finally {

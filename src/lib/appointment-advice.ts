@@ -14,10 +14,14 @@ export type AppointmentAdvice = {
 
 const DEFAULT_MODEL = process.env.SAFESTEP_GEMINI_MODEL || "gemini-3.1-flash-lite-preview";
 
+function getAnthropicApiKey() {
+  return process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY;
+}
+
 function buildGenAI() {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getAnthropicApiKey();
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not set.");
+    throw new Error("ANTHROPIC_API_KEY is not set.");
   }
 
   return new GoogleGenerativeAI(apiKey);

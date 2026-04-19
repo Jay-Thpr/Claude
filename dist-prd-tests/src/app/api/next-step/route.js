@@ -119,7 +119,7 @@ async function handleNextStepRequest(request, deps = {}) {
                 ...response,
                 ...browserUse,
                 task_memory,
-                message: response.summary || response.explanation || response.nextStep,
+                message: response.nextStep || response.summary || response.explanation,
                 next_step: response.nextStep,
             });
         }
@@ -130,6 +130,7 @@ async function handleNextStepRequest(request, deps = {}) {
             query: body.question,
             url: body.url,
             pageTitle: body.pageTitle,
+            pageSummary: body.pageSummary,
             visibleText: body.visibleText || body.content,
             taskMemory,
             appointment,
@@ -146,7 +147,7 @@ async function handleNextStepRequest(request, deps = {}) {
         return Response.json({
             ...response,
             task_memory,
-            message: response.summary || response.explanation || response.nextStep,
+            message: response.nextStep || response.summary || response.explanation,
             next_step: response.nextStep,
         });
     }

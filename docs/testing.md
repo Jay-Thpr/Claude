@@ -35,7 +35,7 @@ Medicare appointments use hardcoded flow; non-Medicare uses generic orchestrator
 
 ## How the tests work
 
-All route tests use **dependency injection** — each route exports a `handle*Request(req, deps)` function alongside the Next.js `GET`/`POST` export. Tests pass fake implementations for external dependencies (Gemini, Google Calendar, Supabase) so no real credentials are needed and tests run offline.
+All route tests use **dependency injection** — each route exports a `handle*Request(req, deps)` function alongside the Next.js `GET`/`POST` export. Tests pass fake implementations for external dependencies (Gemini, Google Calendar, Supabase) so no real credentials are needed and tests run offline. For any browser-use smoke tests that still read from env, prefer `ANTHROPIC_API_KEY`; legacy setups may still mirror `GEMINI_API_KEY` until the runtime is updated.
 
 ```ts
 // Example: inject a fake calendar snapshot

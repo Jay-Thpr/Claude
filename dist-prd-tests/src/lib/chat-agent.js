@@ -5,10 +5,13 @@ exports.generateChatPlan = generateChatPlan;
 const generative_ai_1 = require("@google/generative-ai");
 const safety_rules_1 = require("./safety-rules");
 const MODEL_NAME = process.env.SAFESTEP_GEMINI_MODEL || "gemini-3.1-flash-lite-preview";
+function getAnthropicApiKey() {
+    return process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY;
+}
 function buildGenAI() {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = getAnthropicApiKey();
     if (!apiKey) {
-        throw new Error("GEMINI_API_KEY is not set.");
+        throw new Error("ANTHROPIC_API_KEY is not set.");
     }
     return new generative_ai_1.GoogleGenerativeAI(apiKey);
 }
@@ -97,7 +100,9 @@ function fallbackPlan(input, intent) {
     if (intent === "current_stage") {
         const currentStage = input.taskMemory?.currentStageTitle || input.taskMemory?.currentTask;
         const summary = currentStage
-            ? `Your current stage is ${currentStage}.`
+            ? input.pageSummary
+                ? `You are on ${currentStage}. ${input.pageSummary}.`
+                : `Your current stage is ${currentStage}.`
             : "I do not have a saved current stage yet.";
         return {
             message: currentStage
@@ -107,7 +112,7 @@ function fallbackPlan(input, intent) {
                 : summary,
             summary,
             nextStep: currentStage
-                ? input.taskMemory?.currentStageDetail || "Keep following the current stage."
+                ? input.taskMemory?.currentStageDetail || "Keep following the current stage and press the next button on this page."
                 : "Tell me what task you are working on, and I will keep track of the stage.",
             explanation: input.taskMemory?.lastStep ? `Your last step was ${input.taskMemory.lastStep}.` : "I do not have a saved last step yet.",
             riskLevel: "safe",
@@ -119,7 +124,9 @@ function fallbackPlan(input, intent) {
         const nextStage = input.taskMemory?.nextStageTitle;
         const currentStage = input.taskMemory?.currentStageTitle || input.taskMemory?.currentTask || null;
         const summary = nextStage
-            ? `The next stage is ${nextStage}.`
+            ? input.pageSummary
+                ? `The next stage is ${nextStage}. ${input.pageSummary}.`
+                : `The next stage is ${nextStage}.`
             : "I do not have a saved next stage yet.";
         return {
             message: nextStage
@@ -129,7 +136,7 @@ function fallbackPlan(input, intent) {
                 : summary,
             summary,
             nextStep: nextStage
-                ? input.taskMemory?.nextStageDetail || "Move to the next stage when you are ready."
+                ? input.taskMemory?.nextStageDetail || "Move to the next stage and press the next button on the new page."
                 : "Tell me what task you are working on, and I will keep track of the next stage.",
             explanation: currentStage ? `You are currently on ${currentStage}.` : "I do not have a saved current stage yet.",
             riskLevel: "safe",
@@ -208,10 +215,10 @@ async function generateChatPlan(input) {
             ? "Focus on whether the page looks safe. Mention concrete page wording or signals."
             : "",
         input.intent === "current_stage"
-            ? "Answer with the user's current action stage using the saved task memory."
+            ? "Answer with the user's current action stage using the saved task memory. If pageSummary is available, use it to describe the current page."
             : "",
         input.intent === "next_stage"
-            ? "Answer with the next action stage using the saved task memory."
+            ? "Answer with the next action stage using the saved task memory. Treat it like the user has moved to a new page. Make nextStep the main answer. Summarize what the page shows, then recommend the exact next button or link to press if one is visible."
             : "",
         input.intent === "calendar_action"
             ? "If there is enough information to create or update a calendar event, include a calendarAction object. Otherwise ask for the missing date or time in one short sentence."

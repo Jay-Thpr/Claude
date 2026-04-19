@@ -2,6 +2,8 @@ export interface TaskStep {
   index: number;
   instruction: string;
   voiceAnnouncement: string;
+  pageSummary?: string;
+  nextButton?: string;
 }
 
 export interface TaskStepRequest {
@@ -18,6 +20,8 @@ export interface TaskStepResponse {
   nextStepIndex: number;
   announcement: string;
   instruction?: string;
+  pageSummary?: string;
+  nextButton?: string;
   memoryUpdate?: {
     currentTask: string;
     lastStep: string;
@@ -90,8 +94,10 @@ export async function POST(request: Request): Promise<Response> {
     nextStepIndex,
     announcement: nextStep.voiceAnnouncement,
     instruction: nextStep.instruction,
+    pageSummary: nextStep.pageSummary ?? nextStep.instruction,
+    nextButton: nextStep.nextButton ?? "Look for the next button or link on the page.",
     memoryUpdate: {
-      currentTask: "Task in progress",
+      currentTask: nextStep.pageSummary || nextStep.instruction || "Task in progress",
       lastStep: currentStep?.instruction ?? `Completed step ${safeCurrentIndex + 1}`,
     },
   } satisfies TaskStepResponse);

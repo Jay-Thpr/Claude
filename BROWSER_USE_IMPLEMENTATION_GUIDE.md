@@ -44,7 +44,7 @@ project/
 ├── backend/
 │   ├── agent.py        # Agent logic, LLM init, step callback, submit guard
 │   ├── main.py         # FastAPI: /api/start, /api/stream (SSE), /api/status
-│   ├── .env            # GEMINI_API_KEY=...
+│   ├── .env            # ANTHROPIC_API_KEY=...
 │   ├── requirements.txt
 │   └── venv/
 └── frontend/
@@ -63,7 +63,7 @@ from browser_use.llm.google.chat import ChatGoogle
 
 llm = ChatGoogle(
     model="gemini-3.1-flash-lite",
-    api_key=os.environ["GEMINI_API_KEY"],
+    api_key=os.environ["ANTHROPIC_API_KEY"],
     temperature=0.0,
     max_output_tokens=16000,  # IMPORTANT: default 8096 is too small for thinking models
 )
@@ -79,6 +79,7 @@ llm = ChatGoogle(
 - Gemini 3.1 Flash Lite uses thinking tokens (~7000-8000 tokens per step)
 - Thinking tokens count against `max_output_tokens`
 - Default 8096 gets consumed by thinking, leaving no room for the JSON response → truncated JSON → parse error
+- If older runtime code still reads `GEMINI_API_KEY`, mirror the same value there during migration.
 
 **Supported model strings:**
 - `"gemini-3.1-flash-lite"` ✅
@@ -346,7 +347,7 @@ function startAgent() {
 
 ```
 # backend/.env
-GEMINI_API_KEY=your_key_here
+ANTHROPIC_API_KEY=your_key_here
 ```
 
 Load in FastAPI with:

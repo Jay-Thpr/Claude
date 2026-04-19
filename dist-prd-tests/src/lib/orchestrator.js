@@ -18,6 +18,9 @@ const FALLBACK_MODELS = [
     "gemini-2.0-flash",
     "gemini-3.1-flash-lite-preview",
 ];
+function getAnthropicApiKey() {
+    return process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY;
+}
 function buildDefaultTaskMemory() {
     return {
         currentTask: mock_context_1.DEMO_MEMORY.currentTask,
@@ -129,13 +132,13 @@ function safeParseJson(text) {
     }
 }
 function buildGenAI() {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = getAnthropicApiKey();
     if (!apiKey) {
-        throw new Error("GEMINI_API_KEY is not set.");
+        throw new Error("ANTHROPIC_API_KEY is not set.");
     }
     return new generative_ai_1.GoogleGenerativeAI(apiKey);
 }
-async function runGeminiPrompt(prompt) {
+async function runAnthropicPrompt(prompt) {
     const genAI = buildGenAI();
     let lastError = null;
     for (const modelName of FALLBACK_MODELS) {
@@ -148,7 +151,7 @@ async function runGeminiPrompt(prompt) {
             lastError = error;
         }
     }
-    throw lastError || new Error("Unable to reach Gemini.");
+    throw lastError || new Error("Unable to reach Anthropic.");
 }
 function buildContext(input, taskMemory, appointment, userProfile, userContextEntries) {
     const intent = (0, intent_router_1.routeIntent)(input);
@@ -208,7 +211,7 @@ async function orchestrateCopilot(input) {
         riskLevel: context.riskLevel,
     });
     try {
-        const rawText = await runGeminiPrompt(prompt);
+        const rawText = await runAnthropicPrompt(prompt);
         const parsed = safeParseJson(rawText);
         const response = (0, response_schema_1.normalizeCopilotResponse)(parsed, context.intent);
         return {
