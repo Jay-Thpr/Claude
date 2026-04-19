@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "SafeStep",
+  "version": "1.0",
+  "description": "Your senior-friendly browser copilot",
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "128": "icon.png"
+    }
+  }
+}
