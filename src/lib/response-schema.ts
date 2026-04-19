@@ -1,4 +1,5 @@
 export type CopilotMode =
+  | "chat"
   | "guidance"
   | "scam_check"
   | "appointment"
@@ -8,6 +9,7 @@ export type RiskLevel = "safe" | "uncertain" | "risky";
 
 export type CopilotResponse = {
   mode: CopilotMode;
+  message?: string;
   summary?: string;
   nextStep?: string;
   explanation?: string;

@@ -1,6 +1,6 @@
 import { extractFromPage } from "@/lib/browser-use";
 import { updateTaskMemory, getTaskMemory } from "@/lib/memory-store";
-import { createAppointment } from "@/lib/google-calendar";
+import { createAppointment, updateAppointment } from "@/lib/google-calendar";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { DEMO_USER_ID, DEMO_USER_PROFILE } from "@/lib/mock-context";
 import { logger } from "@/lib/logger";
@@ -57,6 +57,8 @@ export interface BrowserAgentRequest {
   context?: string;
   returnFields?: string[];
   scheduleResult?: boolean;
+  calendarAction?: "create" | "update";
+  calendarEventId?: string;
   scamCheckUrl?: string;
   scamCheckNotifyPhone?: string;
 }
@@ -68,11 +70,26 @@ export interface ScheduledEvent {
   durationMinutes: number;
 }
 
+export interface UpdatedEvent {
+  eventId: string;
+  title?: string;
+  scheduledAt?: string;
+  durationMinutes?: number;
+}
+
 export interface BrowserAgentResponse {
   success: true;
   result: string;
   parsed: Record<string, unknown> | null;
   scheduled: ScheduledEvent | null;
+  updated: UpdatedEvent | null;
+  calendarEvent: {
+    action: "create" | "update";
+    eventId: string;
+    title: string;
+    scheduledAt?: string;
+    durationMinutes?: number;
+  } | null;
   memory: {
     current_task: string | null;
     last_step: string | null;
@@ -103,6 +120,16 @@ function parseScheduledAt(value: unknown): Date | null {
   return d;
 }
 
+function parseDurationMinutes(value: unknown, fallback = 30): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.round(value)
+    : fallback;
+}
+
+function parseMaybeString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 export async function POST(request: Request): Promise<Response> {
   let body: BrowserAgentRequest;
   try {
@@ -111,7 +138,16 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ success: false, error: "Invalid JSON body" } satisfies BrowserAgentError, { status: 400 });
   }
 
-  const { goal, context, returnFields, scheduleResult, scamCheckUrl, scamCheckNotifyPhone } = body;
+  const {
+    goal,
+    context,
+    returnFields,
+    scheduleResult,
+    calendarAction,
+    calendarEventId,
+    scamCheckUrl,
+    scamCheckNotifyPhone,
+  } = body;
 
   if (!goal?.trim()) {
     return Response.json({ success: false, error: "goal is required" } satisfies BrowserAgentError, { status: 400 });
@@ -157,20 +193,46 @@ export async function POST(request: Request): Promise<Response> {
     ? `Prior session memory:\n- Last task: ${priorMemory.current_task}\n- Last step: ${priorMemory.last_step ?? "unknown"}\nContinue from where the user left off if relevant.`
     : null;
 
-  // Build field hints. When scheduling, always request the appointment shape.
-  const scheduleFields = scheduleResult
-    ? ["title", "scheduledAt (ISO 8601 datetime, e.g. 2026-04-20T10:00:00)", "durationMinutes (number, default 30)", "notes"]
-    : [];
-  const allFields = [...(returnFields ?? []), ...scheduleFields];
+  const requestedCalendarAction = calendarAction ?? (scheduleResult ? "create" : undefined);
+
+  // Build field hints. When writing to calendar, always request the write shape.
+  const calendarFields =
+    requestedCalendarAction === "create"
+      ? [
+          "title",
+          "scheduledAt (ISO 8601 datetime, e.g. 2026-04-20T10:00:00)",
+          "durationMinutes (number, default 30)",
+          "notes",
+          "location",
+        ]
+      : requestedCalendarAction === "update"
+        ? [
+            "eventId (calendar event id to modify)",
+            "title",
+            "scheduledAt (ISO 8601 datetime, optional if only changing notes)",
+            "durationMinutes (number, optional if unchanged)",
+            "notes",
+            "location",
+          ]
+        : [];
+  const allFields = [...(returnFields ?? []), ...calendarFields];
   const fieldsHint = allFields.length
     ? `\n\nReturn your answer as JSON with these fields: ${allFields.join(", ")}.`
     : "";
+
+  const calendarInstructions =
+    requestedCalendarAction === "create"
+      ? "\n\nCalendar action: create a new Google Calendar event from the final result. Include title, scheduledAt, durationMinutes, notes, and location if available."
+      : requestedCalendarAction === "update"
+        ? `\n\nCalendar action: update the existing Google Calendar event${calendarEventId ? ` ${calendarEventId}` : ""}. Include eventId and any fields that changed.`
+        : "";
 
   const task = [
     profileContext,
     memoryContext,
     goal,
     context ? `Additional context: ${context}` : null,
+    calendarInstructions || null,
     fieldsHint || null,
   ]
     .filter(Boolean)
@@ -189,24 +251,65 @@ export async function POST(request: Request): Promise<Response> {
 
   // Attempt GCal scheduling if requested
   let scheduled: ScheduledEvent | null = null;
+  let updated: UpdatedEvent | null = null;
+  let calendarEvent: BrowserAgentResponse["calendarEvent"] = null;
   let scheduleError: string | undefined;
 
-  if (scheduleResult && parsed) {
-    const startTime = parseScheduledAt(parsed.scheduledAt);
-    if (startTime) {
-      const title = typeof parsed.title === "string" ? parsed.title : goal.slice(0, 100);
-      const durationMinutes = typeof parsed.durationMinutes === "number" ? parsed.durationMinutes : 30;
-      const notes = typeof parsed.notes === "string" ? parsed.notes : result.slice(0, 500);
+  if (requestedCalendarAction && parsed) {
+    const title = parseMaybeString(parsed.title) ?? goal.slice(0, 100);
+    const durationMinutes = parseDurationMinutes(parsed.durationMinutes, 30);
+    const notes = parseMaybeString(parsed.notes) ?? result.slice(0, 500);
+    const location = parseMaybeString(parsed.location) ?? null;
+    const startTime = parseScheduledAt(parsed.scheduledAt ?? parsed.startTime);
 
-      try {
-        const eventId = await createAppointment(title, startTime, durationMinutes, notes);
-        scheduled = { eventId, title, scheduledAt: startTime.toISOString(), durationMinutes };
-      } catch (err) {
-        logger.error("browser-agent", "createAppointment failed", err);
-        scheduleError = "Browser agent found appointment info but Google Calendar write failed.";
+    try {
+      if (requestedCalendarAction === "create") {
+        if (startTime) {
+          const eventId = await createAppointment(title, startTime, durationMinutes, notes, location);
+          scheduled = { eventId, title, scheduledAt: startTime.toISOString(), durationMinutes };
+          calendarEvent = {
+            action: "create",
+            eventId,
+            title,
+            scheduledAt: startTime.toISOString(),
+            durationMinutes,
+          };
+        }
+      } else {
+        const eventId = parseMaybeString(parsed.eventId) ?? calendarEventId;
+        if (eventId) {
+          await updateAppointment(eventId, {
+            title: parseMaybeString(parsed.title),
+            startTime: startTime ?? undefined,
+            durationMinutes: typeof parsed.durationMinutes === "number" ? durationMinutes : undefined,
+            notes,
+            location,
+          });
+          updated = {
+            eventId,
+            title: parseMaybeString(parsed.title) ?? title,
+            scheduledAt: startTime?.toISOString(),
+            durationMinutes: typeof parsed.durationMinutes === "number" ? durationMinutes : undefined,
+          };
+          calendarEvent = {
+            action: "update",
+            eventId,
+            title: updated.title ?? title,
+            scheduledAt: updated.scheduledAt ?? startTime?.toISOString(),
+            durationMinutes: updated.durationMinutes,
+          };
+        } else {
+          scheduleError = "Browser agent found event changes but no calendar event id was provided.";
+        }
       }
+    } catch (err) {
+      logger.error("browser-agent", "calendar write failed", err);
+      scheduleError =
+        requestedCalendarAction === "update"
+          ? "Browser agent found event changes but Google Calendar update failed."
+          : "Browser agent found appointment info but Google Calendar write failed.";
     }
-    // If no scheduledAt in parsed output, scheduling is silently skipped —
+    // If the parsed output is missing the needed calendar fields, the write is skipped —
     // the agent may have found a phone number to call instead of a bookable slot.
   }
 
@@ -224,6 +327,8 @@ export async function POST(request: Request): Promise<Response> {
     result,
     parsed,
     scheduled,
+    updated,
+    calendarEvent,
     ...(scheduleError ? { scheduleError } : {}),
     memory: memory
       ? { current_task: memory.current_task, last_step: memory.last_step }

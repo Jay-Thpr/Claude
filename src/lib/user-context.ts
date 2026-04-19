@@ -3,17 +3,17 @@ import { cookies } from "next/headers";
 import {
   loadGoogleIdentityFromCookies,
   type GoogleIdentity,
-} from "@/lib/google-account";
-import { createServerSupabaseClient, hasSupabaseConfig } from "@/lib/supabase-server";
+} from "./google-account";
+import { createServerSupabaseClient, hasSupabaseConfig } from "./supabase-server";
 import {
   DEMO_USER_CONTEXT_ENTRIES,
   DEMO_USER_ID,
   DEMO_USER_PROFILE,
-} from "@/lib/mock-context";
+} from "./mock-context";
 import type {
   UserContextEntry,
   UserProfileContext,
-} from "@/lib/response-schema";
+} from "./response-schema";
 
 export type LoadedUserContext = {
   profile: UserProfileContext;

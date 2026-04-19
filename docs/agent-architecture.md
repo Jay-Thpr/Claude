@@ -9,7 +9,7 @@
 | Browser agent | Python FastAPI (port 8000) + browser-use | Autonomous web navigation |
 | Browser LLM | `gemini-3.1-flash-lite-preview` | Powers browser-use agent steps |
 | Database | Supabase (Postgres) | Persistent memory + user profiles |
-| Calendar | Google Calendar API | Appointment creation |
+| Calendar | Google Calendar API | Appointment creation and modification |
 
 ---
 
@@ -45,7 +45,7 @@ What is the user doing right now. Agents read this at the start of every task to
 Every scam check result. Used for history and pattern analysis.
 
 ### `appointments` — appointment records
-GCal events created by the browser agent.
+GCal events created or modified by the browser agent.
 
 ### `user_context_entries` — detailed context cards
 Structured per-user notes (conditions, preferences, routines) written during onboarding.
@@ -61,7 +61,7 @@ Every call to `POST /api/browser-agent` builds the agent task in this order:
 2. task_memory    →  what the user was last doing (continuity across sessions)
 3. goal           →  the specific task requested
 4. context        →  caller-provided session-specific info (optional)
-5. fieldsHint     →  JSON output format (if returnFields or scheduleResult set)
+5. fieldsHint     →  JSON output format (if returnFields, scheduleResult, or calendarAction set)
 ```
 
 All five sections are joined and sent as the browser-use agent's task string.
@@ -85,9 +85,10 @@ POST /api/browser-agent
   ├── POST /api/extract to Python backend (port 8000)
   │     └── browser-use agent navigates web, returns final_result()
   ├── tryParseJson(result) → structured data if agent returned JSON
-  ├── if scheduleResult + parsed.scheduledAt → createAppointment() → GCal
-  ├── updateTaskMemory (upsert current_task + last_step)
-  └── return { success, result, parsed, scheduled, memory }
+├── if calendarAction=create + parsed.scheduledAt → createAppointment() → GCal
+├── if calendarAction=update + parsed.eventId → updateAppointment() → GCal
+├── updateTaskMemory (upsert current_task + last_step)
+└── return { success, result, parsed, scheduled, updated, calendarEvent, memory }
 ```
 
 ---
@@ -95,7 +96,7 @@ POST /api/browser-agent
 ## Key Rules for Agents
 
 - **Never auto-submit forms** — the profile context always includes an explicit IMPORTANT line telling the agent to pause before submitting, confirming, or sharing personal info.
-- **Graceful degradation** — if `scheduleResult: true` but the agent finds a phone number instead of a bookable slot, `scheduled` is null and the useful info is still returned in `result`.
+- **Graceful degradation** — if `scheduleResult: true` or `calendarAction: "create"` but the agent finds a phone number instead of a bookable slot, `scheduled` is null and the useful info is still returned in `result`.
 - **Model**: `gemini-3.1-flash-lite-preview` via `SAFESTEP_BROWSER_MODEL` env var in `backend/.env`.
 
 ---
@@ -105,5 +106,5 @@ POST /api/browser-agent
 1. Add fields to `BrowserAgentRequest` interface in `route.ts`
 2. Inject relevant context into the task string
 3. Parse the result with `tryParseJson`
-4. Call the appropriate lib function (e.g. `createAppointment`, `logScamCheck`)
+4. Call the appropriate lib function (e.g. `createAppointment`, `updateAppointment`, `logScamCheck`)
 5. Update `task_memory` with what happened

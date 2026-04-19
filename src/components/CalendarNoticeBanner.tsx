@@ -16,7 +16,7 @@ export default function CalendarNoticeBanner() {
   }
 
   return (
-    <div className="mx-4 mt-4 rounded-2xl border border-surface-200 bg-white px-5 py-4 shadow-sm">
+    <div className="mx-4 mt-4 rounded-2xl border border-border bg-white/90 px-5 py-4 shadow-sm">
       <p className="text-base font-semibold text-text-primary">
         {gcalNotice === "connected"
           ? "Google Calendar connected."

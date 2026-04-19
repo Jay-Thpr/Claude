@@ -24,12 +24,14 @@ import {
 import { buildCopilotPrompt } from "@/lib/prompts";
 import { loadUserContextFromCookies, summarizeUserContext } from "@/lib/user-context";
 
+type OrchestrationMode = Exclude<CopilotMode, "chat">;
+
 type CopilotContext = {
   userProfile: UserProfileContext;
   userContextEntries: UserContextEntry[];
   taskMemory: TaskMemoryState;
   appointment: AppointmentContext;
-  intent: CopilotMode;
+  intent: OrchestrationMode;
   suspiciousSignals: string[];
   riskLevel: CopilotResponse["riskLevel"];
 };
@@ -37,6 +39,8 @@ type CopilotContext = {
 const FALLBACK_MODELS = [
   process.env.SAFESTEP_GEMINI_MODEL || "gemini-2.5-flash",
   "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-3.1-flash-lite-preview",
 ];
 
 function buildDefaultTaskMemory(): TaskMemoryState {

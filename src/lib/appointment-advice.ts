@@ -3,7 +3,7 @@ import type {
   AppointmentContext,
   UserContextEntry,
   UserProfileContext,
-} from "@/lib/response-schema";
+} from "./response-schema";
 
 export type AppointmentAdvice = {
   summary: string;
@@ -12,7 +12,7 @@ export type AppointmentAdvice = {
   questionsToAsk: string[];
 };
 
-const DEFAULT_MODEL = process.env.SAFESTEP_GEMINI_MODEL || "gemini-3.1-flash-lite";
+const DEFAULT_MODEL = process.env.SAFESTEP_GEMINI_MODEL || "gemini-3.1-flash-lite-preview";
 
 function buildGenAI() {
   const apiKey = process.env.GEMINI_API_KEY;

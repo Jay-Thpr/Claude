@@ -8,15 +8,30 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
     "outDir": "dist-prd-tests",
     "rootDir": ".",
     "types": ["node"]
   },
   "include": [
     "tests/prd.test.ts",
+    "tests/next-step.test.ts",
+    "tests/orchestration.test.ts",
     "src/lib/appointment-reminders.ts",
+    "src/lib/appointment-context.ts",
     "src/lib/safety-rules.ts",
+    "src/lib/medicare-next-step.ts",
     "src/lib/task-flow.ts",
-    "src/lib/response-schema.ts"
+    "src/lib/response-schema.ts",
+    "src/lib/appointment-utils.ts",
+    "src/lib/gcal.ts",
+    "src/lib/mock-context.ts",
+    "src/lib/supabase-server.ts",
+    "src/lib/user-context.ts",
+    "src/lib/orchestrator.ts",
+    "src/app/api/next-step/route.ts"
   ]
 }

@@ -9,9 +9,5 @@ export default async function BasicInfoPage() {
     redirect("/login");
   }
 
-  if (access.onboarded) {
-    redirect("/");
-  }
-
   return <BasicInfoForm />;
 }

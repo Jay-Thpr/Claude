@@ -1,4 +1,6 @@
-import type { CopilotMode, CopilotRequest } from "@/lib/response-schema";
+import type { CopilotMode, CopilotRequest } from "./response-schema";
+
+type OrchestrationMode = Exclude<CopilotMode, "chat">;
 
 const SCAM_HINTS = [
   "scam",
@@ -41,7 +43,7 @@ function score(text: string, hints: string[]) {
   return hints.reduce((total, hint) => total + (text.includes(hint) ? 1 : 0), 0);
 }
 
-export function routeIntent(input: CopilotRequest): CopilotMode {
+export function routeIntent(input: CopilotRequest): OrchestrationMode {
   const haystack = [
     input.query,
     input.pageTitle,
@@ -54,7 +56,7 @@ export function routeIntent(input: CopilotRequest): CopilotMode {
     .toLowerCase();
 
   if (input.mode && input.mode !== "auto") {
-    return input.mode;
+    return input.mode === "chat" ? "guidance" : input.mode;
   }
 
   const scamScore = score(haystack, SCAM_HINTS);
@@ -76,7 +78,7 @@ export function routeIntent(input: CopilotRequest): CopilotMode {
   return "guidance";
 }
 
-export function shouldUseBrowserUse(input: CopilotRequest, intent: CopilotMode) {
+export function shouldUseBrowserUse(input: CopilotRequest, intent: OrchestrationMode) {
   const text = [
     input.query,
     input.pageTitle,

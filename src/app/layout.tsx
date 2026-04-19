@@ -21,7 +21,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${manrope.variable} h-full overflow-y-auto`}>
-      <body className="min-h-full overflow-y-auto bg-surface-50 antialiased">{children}</body>
+      <body className="min-h-full overflow-y-auto bg-page text-text-primary antialiased">
+        {children}
+      </body>
     </html>
   );
 }

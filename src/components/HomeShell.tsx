@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import CopilotPanel from "@/components/CopilotPanel";
 import BrowserTaskArea, { type BrowserTaskAreaHandle } from "@/components/BrowserTaskArea";
-import GoogleSearchEmbed from "@/components/GoogleSearchEmbed";
+import CopilotPanel from "@/components/CopilotPanel";
 import TwilioCallPanel from "@/components/TwilioCallPanel";
+import GoogleSearchEmbed from "@/components/GoogleSearchEmbed";
 
 export default function HomeShell() {
   const browserAreaRef = useRef<BrowserTaskAreaHandle | null>(null);
@@ -13,6 +13,8 @@ export default function HomeShell() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bananaTask =
+    "Open https://www.google.com and search for banana. Stop on the results page before clicking anything else.";
   const pharmacyTask =
     "Go to my pharmacy website and look for refill options. Trace the path to the refill, prescription status, or contact page, and stop before submitting anything.";
 
@@ -50,6 +52,10 @@ export default function HomeShell() {
     browserAreaRef.current?.runTask(pharmacyTask);
   };
 
+  const openBananaTest = () => {
+    browserAreaRef.current?.runTask(bananaTask);
+  };
+
   return (
     <div className="app-shell">
       <div className="home-stage">
@@ -58,15 +64,10 @@ export default function HomeShell() {
         <div className="home-browser-wrap">
           <BrowserTaskArea
             ref={browserAreaRef}
+            currentUrl={currentUrl}
+            currentPageTitle={currentPageTitle}
             onUrlChange={setCurrentUrl}
             onPageTitleChange={setCurrentPageTitle}
-            panelTitle="Embedded Browser Trace"
-            panelCopy="The pharmacy trace runs right here on the main page. Use the popup launcher to start it."
-            examplePrompts={[
-              "Go to my pharmacy website and look for refill options",
-              "Search the pharmacy site for prescription status",
-              "Find the contact or help page for the pharmacy",
-            ]}
           />
         </div>
       </div>
@@ -77,6 +78,7 @@ export default function HomeShell() {
             currentUrl={currentUrl}
             currentPageTitle={currentPageTitle}
             onClose={closePanel}
+            onNavigateBanana={openBananaTest}
             onRunPharmacyTrace={runPharmacyTrace}
           />
         </div>

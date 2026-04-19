@@ -82,7 +82,7 @@ export default function BasicInfoForm() {
       }
 
       redirectedRef.current = true;
-      router.push("/");
+      router.push("/navigate");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save your information.");
     } finally {
@@ -105,10 +105,10 @@ export default function BasicInfoForm() {
             </h1>
           </div>
           <Link
-            href="/onboarding"
+            href="/navigate"
             className="rounded-2xl border border-surface-200 bg-white px-4 py-3 text-base font-semibold text-text-primary transition hover:border-primary-300 hover:bg-primary-50"
           >
-            Back
+            Back to navigation
           </Link>
         </div>
 
@@ -253,10 +253,10 @@ export default function BasicInfoForm() {
               {saving ? "Saving..." : "Save basic info"}
             </button>
             <Link
-              href="/"
+              href="/navigate"
               className="rounded-2xl border border-surface-200 bg-surface-50 px-5 py-3 text-lg font-semibold text-text-primary transition hover:border-primary-300 hover:bg-primary-50"
             >
-              Back to SafeStep
+              Back to navigation
             </Link>
           </div>
 

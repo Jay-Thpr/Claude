@@ -84,11 +84,20 @@ export async function addPrepNotes(eventId: string, notes: string): Promise<void
   }
 }
 
+export type CalendarEventUpdate = {
+  title?: string;
+  startTime?: Date;
+  durationMinutes?: number;
+  notes?: string;
+  location?: string | null;
+};
+
 export async function createAppointment(
   title: string,
   startTime: Date,
   durationMinutes = 60,
-  notes?: string
+  notes?: string,
+  location?: string | null,
 ): Promise<string> {
   try {
     const auth = getAuthClient();
@@ -101,6 +110,7 @@ export async function createAppointment(
       requestBody: {
         summary: title,
         description: notes,
+        location: location || undefined,
         start: { dateTime: startTime.toISOString() },
         end: { dateTime: endTime.toISOString() },
       },
@@ -109,6 +119,97 @@ export async function createAppointment(
     return res.data.id ?? "";
   } catch (err) {
     logger.error("google-calendar", "createAppointment failed", err);
+    throw err;
+  }
+}
+
+function parseEventDate(value?: { date?: string; dateTime?: string } | null) {
+  const raw = value?.dateTime ?? value?.date;
+  if (!raw) {
+    return null;
+  }
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return {
+    raw,
+    date,
+    isAllDay: Boolean(value?.date && !value?.dateTime),
+  };
+}
+
+export async function updateAppointment(eventId: string, patch: CalendarEventUpdate): Promise<string> {
+  try {
+    const auth = getAuthClient();
+    const calendar = google.calendar({ version: "v3", auth });
+
+    const existing = await calendar.events.get({
+      calendarId: process.env.GOOGLE_CALENDAR_ID,
+      eventId,
+    });
+
+    const currentStart = parseEventDate(existing.data.start);
+    const currentEnd = parseEventDate(existing.data.end);
+
+    let start = currentStart;
+    if (patch.startTime) {
+      start = {
+        raw: patch.startTime.toISOString(),
+        date: patch.startTime,
+        isAllDay: false,
+      };
+    }
+
+    let end = currentEnd;
+    if (patch.startTime || typeof patch.durationMinutes === "number") {
+      const startDate = patch.startTime ?? currentStart?.date;
+      if (startDate) {
+        const durationMinutes =
+          typeof patch.durationMinutes === "number"
+            ? patch.durationMinutes
+            : currentStart && currentEnd
+              ? Math.max(1, Math.round((currentEnd.date.getTime() - currentStart.date.getTime()) / 60000))
+              : 60;
+        const updatedEnd = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+        end = {
+          raw: updatedEnd.toISOString(),
+          date: updatedEnd,
+          isAllDay: false,
+        };
+      }
+    }
+
+    await calendar.events.patch({
+      calendarId: process.env.GOOGLE_CALENDAR_ID,
+      eventId,
+      requestBody: {
+        summary: patch.title ?? existing.data.summary ?? undefined,
+        description: patch.notes ?? existing.data.description ?? undefined,
+        location:
+          typeof patch.location === "string"
+            ? patch.location
+            : patch.location === null
+              ? null
+              : existing.data.location ?? undefined,
+        start: start
+          ? start.isAllDay
+            ? { date: start.raw }
+            : { dateTime: start.raw }
+          : undefined,
+        end: end
+          ? end.isAllDay
+            ? { date: end.raw }
+            : { dateTime: end.raw }
+          : undefined,
+      },
+    });
+
+    return eventId;
+  } catch (err) {
+    logger.error("google-calendar", "updateAppointment failed", err);
     throw err;
   }
 }

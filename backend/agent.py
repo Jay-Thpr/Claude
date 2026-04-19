@@ -35,9 +35,11 @@ os.environ.setdefault("BROWSER_USE_CONFIG_DIR", str(Path("/tmp") / "browseruse")
 try:
     from browser_use import Agent, BrowserProfile, BrowserSession
     from browser_use.llm.google.chat import ChatGoogle
+    from browser_use.llm.exceptions import ModelProviderError, ModelRateLimitError
     _IMPORT_ERROR: Exception | None = None
 except ImportError as exc:  # pragma: no cover - optional browser agent dependency
     Agent = BrowserProfile = BrowserSession = ChatGoogle = None  # type: ignore[assignment]
+    ModelProviderError = ModelRateLimitError = None  # type: ignore[assignment]
     _IMPORT_ERROR = exc
 
 # Submit guard keywords
@@ -50,32 +52,59 @@ SUBMIT_KEYWORDS = {
     "place order",
 }
 
-BROWSER_MODEL = "gemini-3.1-flash-lite"
+PRIMARY_BROWSER_MODEL = "gemini-3.1-flash-lite-preview"
+FALLBACK_BROWSER_MODEL = "gemini-2.0-flash"
+MODEL_ALIASES = {
+    "gemini-3.1-flash-lite": PRIMARY_BROWSER_MODEL,
+}
 logger = logging.getLogger(__name__)
 
 
-def _build_llm() -> ChatGoogle:
+def _resolve_model_name(raw_name: str | None, default_name: str) -> str:
+    model_name = (raw_name or "").strip() or default_name
+    return MODEL_ALIASES.get(model_name, model_name)
+
+
+def _build_llm() -> tuple[ChatGoogle, ChatGoogle]:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not set.")
 
-    model_name = os.environ.get("SAFESTEP_BROWSER_MODEL", BROWSER_MODEL)
-    logger.info("browser-use model=%s", model_name)
+    model_name = _resolve_model_name(os.environ.get("SAFESTEP_BROWSER_MODEL"), PRIMARY_BROWSER_MODEL)
+    fallback_model_name = _resolve_model_name(
+        os.environ.get("SAFESTEP_BROWSER_FALLBACK_MODEL"),
+        FALLBACK_BROWSER_MODEL,
+    )
+    if fallback_model_name == model_name:
+        fallback_model_name = FALLBACK_BROWSER_MODEL
 
-    return ChatGoogle(
+    logger.info("browser-use model=%s fallback=%s", model_name, fallback_model_name)
+
+    primary_llm = ChatGoogle(
         model=model_name,
         api_key=api_key,
         temperature=0.0,
         max_output_tokens=16000,
     )
+    fallback_llm = ChatGoogle(
+        model=fallback_model_name,
+        api_key=api_key,
+        temperature=0.0,
+        max_output_tokens=16000,
+    )
+
+    return primary_llm, fallback_llm
 
 
-def _browser_headless() -> bool:
+def _browser_headless(force_headless: bool | None = None) -> bool:
+    if force_headless is not None:
+        return force_headless
+
     value = os.environ.get("BROWSER_USE_HEADLESS", "false").strip().lower()
     return value in {"1", "true", "yes", "on"}
 
 
-async def extract_from_page(task: str) -> str:
+async def extract_from_page(task: str, headless: bool | None = None) -> str:
     """
     Run a browser-use agent for extraction tasks.
     Returns the extracted text result from the current page.
@@ -85,9 +114,9 @@ async def extract_from_page(task: str) -> str:
             "browser-use is not installed in this environment, so the browser agent cannot run."
         ) from _IMPORT_ERROR
 
-    llm = _build_llm()
+    llm, fallback_llm = _build_llm()
 
-    profile = BrowserProfile(headless=_browser_headless())
+    profile = BrowserProfile(headless=_browser_headless(headless))
     session = BrowserSession(browser_profile=profile)
 
     class ExtractionResponse(BaseModel):
@@ -99,7 +128,10 @@ async def extract_from_page(task: str) -> str:
         await session.navigate_to("https://www.medicare.gov")
 
         page = await session.must_get_current_page()
-        extracted = await page.extract_content(task, ExtractionResponse, llm=llm)
+        try:
+            extracted = await page.extract_content(task, ExtractionResponse, llm=llm)
+        except (ModelProviderError, ModelRateLimitError):
+            extracted = await page.extract_content(task, ExtractionResponse, llm=fallback_llm)
 
         parts: list[str] = []
         if extracted.phone_number:
@@ -115,7 +147,13 @@ async def extract_from_page(task: str) -> str:
             pass
 
 
-async def run_agent(task: str, emit: Callable[[dict], Awaitable[None]]) -> None:
+async def run_agent(
+    task: str,
+    emit: Callable[[dict], Awaitable[None]],
+    headless: bool | None = None,
+    initial_url: str | None = None,
+    initial_page_title: str | None = None,
+) -> None:
     """
     Run a browser-use agent for the given task.
     Emits step events via the emit callback for SSE streaming.
@@ -125,12 +163,29 @@ async def run_agent(task: str, emit: Callable[[dict], Awaitable[None]]) -> None:
             "browser-use is not installed in this environment, so the browser agent cannot run."
         ) from _IMPORT_ERROR
 
-    llm = _build_llm()
+    llm, fallback_llm = _build_llm()
 
-    profile = BrowserProfile(headless=_browser_headless())
+    profile = BrowserProfile(headless=_browser_headless(headless))
     session = BrowserSession(browser_profile=profile)
 
     step_count = 0
+
+    async def capture_page_state() -> tuple[str | None, str | None, str | None]:
+        try:
+            state = await session.get_browser_state_summary(include_screenshot=True)
+            return state.url or None, state.title or None, state.screenshot
+        except Exception:
+            try:
+                current_url = await session.get_current_page_url()
+            except Exception:
+                current_url = None
+
+            try:
+                current_page_title = await session.get_current_page_title()
+            except Exception:
+                current_page_title = None
+
+            return current_url, current_page_title, None
 
     async def on_step_end(agent_instance: Agent) -> None:
         nonlocal step_count
@@ -175,12 +230,16 @@ async def run_agent(task: str, emit: Callable[[dict], Awaitable[None]]) -> None:
 
         step_count += 1
         action_str = "; ".join(actions_desc) if actions_desc else None
+        current_url, current_page_title, current_screenshot = await capture_page_state()
 
         await emit({
             "type": "step",
             "step": step_count,
             "thought": thought,
             "action": action_str,
+            "current_url": current_url,
+            "current_page_title": current_page_title,
+            "screenshot_b64": current_screenshot,
         })
 
         # Submit guard
@@ -196,8 +255,23 @@ async def run_agent(task: str, emit: Callable[[dict], Awaitable[None]]) -> None:
             task=task,
             llm=llm,
             browser_session=session,
+            fallback_llm=fallback_llm,
             max_failures=3,
         )
+
+        if initial_url:
+            await session.navigate_to(initial_url)
+            initial_current_url, initial_current_page_title, initial_screenshot = await capture_page_state()
+            step_count += 1
+            await emit({
+                "type": "step",
+                "step": step_count,
+                "thought": "Opened the starting page.",
+                "action": f"navigate → {initial_url}",
+                "current_url": initial_current_url or initial_url,
+                "current_page_title": initial_current_page_title or initial_page_title,
+                "screenshot_b64": initial_screenshot,
+            })
 
         await agent.run(max_steps=40, on_step_end=on_step_end)
         await emit({"type": "done"})
