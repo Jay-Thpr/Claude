@@ -24,9 +24,9 @@
   --surface-2:      #f1f5f9;
 
   /* Text */
-  --text-1:         #0f172a;
-  --text-2:         #475569;
-  --text-3:         #94a3b8;
+  --text-1:         #0a0f1e;
+  --text-2:         #1e3a5f;
+  --text-3:         #4a6080;
 
   /* Borders & shadows */
   --border:         #e2e8f0;
@@ -47,6 +47,7 @@ body {
   background: var(--bg);
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 16px;
+  font-weight: 500;
   line-height: 1.55;
   color: var(--text-1);
   -webkit-font-smoothing: antialiased;
@@ -263,6 +264,7 @@ header {
 
 .appt-when {
   font-size: 15px;
+  font-weight: 600;
   color: var(--text-2);
   display: flex;
   align-items: center;
@@ -289,7 +291,7 @@ header {
 
 .prep .section-label { color: var(--warning); }
 
-.prep-text { font-size: 15px; color: var(--text-1); line-height: 1.65; }
+.prep-text { font-size: 15px; font-weight: 500; color: var(--text-1); line-height: 1.65; }
 
 /* ─── Chat Messages ────────────────────────────────────────────────────────── */
 .chat-messages {
@@ -311,6 +313,7 @@ header {
   padding: 10px 13px;
   border-radius: var(--r-lg);
   font-size: 15px;
+  font-weight: 500;
   line-height: 1.55;
   border: 1px solid transparent;
   box-shadow: var(--shadow-sm);
@@ -395,7 +398,7 @@ header {
   padding: 10px 12px;
   min-height: 44px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-2);
   background: var(--surface);
   border: 1.5px solid var(--border);
