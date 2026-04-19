@@ -1,17 +1,25 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { extractScamSignals, signalsToPromptContext } from "@/lib/scam-signals";
+import { logScamCheck } from "@/lib/scam-store";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const DEMO_USER_ID = "demo-user-001";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { url, pageTitle, content } = body;
 
+    // Run heuristic signal extraction before the LLM call
+    const signals = extractScamSignals(url ?? "", content ?? "");
+    const signalContext = signalsToPromptContext(signals);
+
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     const prompt = `You are SafeStep, a friendly safety advisor helping an older adult determine if a website or message is safe.
-
 You must be honest but gentle. Never scare the user. Explain clearly and simply.
+
+${signalContext}
 
 Analyze this for scam risk:
 - URL: ${url || "Not provided"}
@@ -39,7 +47,12 @@ If you genuinely don't have enough information, classify as "not-sure" and expla
     const result = await model.generateContent(prompt);
     const text = result.response.text();
 
-    let parsed;
+    let parsed: {
+      classification: "safe" | "not-sure" | "risky";
+      explanation: string;
+      suspicious_signals: string[];
+    };
+
     try {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
@@ -51,6 +64,15 @@ If you genuinely don't have enough information, classify as "not-sure" and expla
         suspicious_signals: [],
       };
     }
+
+    // Log to Supabase in the background — don't await, don't block the response
+    logScamCheck({
+      user_id: DEMO_USER_ID,
+      url: url ?? null,
+      classification: parsed.classification,
+      explanation: parsed.explanation,
+      risk_signals: parsed.suspicious_signals ?? [],
+    });
 
     return Response.json(parsed);
   } catch (err) {

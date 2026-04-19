@@ -77,6 +77,106 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+#__next {
+  min-height: 100%;
+}
+
+.test-harness-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 20px;
+  padding: 20px;
+  background:
+    radial-gradient(circle at top, rgba(53, 176, 159, 0.12), transparent 34%),
+    linear-gradient(180deg, #f7f8f6 0%, #eef2ef 100%);
+}
+
+.test-harness-header,
+.test-harness-frame {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(26, 26, 26, 0.08);
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(34, 44, 37, 0.08);
+}
+
+.test-harness-header {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 24px;
+  padding: 28px;
+}
+
+.test-harness-header h1 {
+  font-size: clamp(2rem, 3vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.05;
+  margin-top: 4px;
+}
+
+.test-harness-eyebrow {
+  color: var(--color-primary-700);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.test-harness-copy {
+  max-width: 52rem;
+  margin-top: 12px;
+  color: var(--color-text-secondary);
+}
+
+.test-harness-meta {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.test-harness-meta > div {
+  border: 1px solid var(--color-surface-200);
+  border-radius: 16px;
+  background: var(--color-surface-50);
+  padding: 16px;
+}
+
+.test-harness-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.test-harness-meta p {
+  overflow-wrap: anywhere;
+}
+
+.test-harness-frame {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .test-harness-shell {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .test-harness-header {
+    grid-template-columns: 1fr;
+    padding: 20px;
+    border-radius: 18px;
+  }
+
+  .test-harness-frame {
+    border-radius: 18px;
+  }
+}
+
 /* ========================================
    Component Styles
    ======================================== */

@@ -1,27 +1,42 @@
 "use client";
 
 import { useState } from "react";
-import CopilotPanel from "@/components/CopilotPanel";
 import BrowserTaskArea from "@/components/BrowserTaskArea";
 
 export default function Home() {
-  // Shared state between panels
   const [currentUrl, setCurrentUrl] = useState("");
-  const [currentPageTitle, setCurrentPageTitle] = useState("");
+  const [currentTask, setCurrentTask] = useState("");
 
   return (
-    <div className="app-layout">
-      {/* Left: Browser Use Task Area */}
-      <BrowserTaskArea
-        onUrlChange={setCurrentUrl}
-        onPageTitleChange={setCurrentPageTitle}
-      />
+    <main className="test-harness-shell">
+      <section className="test-harness-header">
+        <div>
+          <p className="test-harness-eyebrow">Browser Agent Test Harness</p>
+          <h1>Run browser-use tasks against a real browser session</h1>
+          <p className="test-harness-copy">
+            This page is for technical validation only. It starts the Python
+            backend agent, streams step events, and surfaces the latest browser
+            navigation the agent reports.
+          </p>
+        </div>
+        <div className="test-harness-meta">
+          <div>
+            <span className="test-harness-label">Current task</span>
+            <p>{currentTask || "No task running"}</p>
+          </div>
+          <div>
+            <span className="test-harness-label">Latest URL</span>
+            <p>{currentUrl || "No navigation reported yet"}</p>
+          </div>
+        </div>
+      </section>
 
-      {/* Right: AI Copilot Panel */}
-      <CopilotPanel
-        currentUrl={currentUrl}
-        currentPageTitle={currentPageTitle}
-      />
-    </div>
+      <section className="test-harness-frame">
+        <BrowserTaskArea
+          onUrlChange={setCurrentUrl}
+          onPageTitleChange={setCurrentTask}
+        />
+      </section>
+    </main>
   );
 }
