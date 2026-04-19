@@ -1,6 +1,11 @@
 import { createCallSession, updateCallSession } from "@/lib/call-store";
 import { logger } from "@/lib/logger";
-import { buildProviderIntroTwiml, getPublicBaseUrl, startTwilioCall } from "@/lib/twilio";
+import {
+  buildProviderIntroTwiml,
+  getPublicBaseUrl,
+  getVoiceRuntimeConfig,
+  startTwilioCall,
+} from "@/lib/twilio";
 
 const DEMO_USER_ID = "demo-user-001";
 
@@ -67,6 +72,14 @@ export async function POST(request: Request) {
       initiated_by: initiatedBy,
       appointment_context: body.appointment_context ?? null,
       constraints: body.constraints ?? [],
+      disposition: null,
+      callback_requested: null,
+      appointment_confirmed: null,
+      voicemail_detected: null,
+      call_duration_seconds: null,
+      recording_url: null,
+      recording_sid: null,
+      transcript_excerpt: null,
       status: "queued",
       status_message: "Preparing outbound Twilio call.",
       twilio_call_sid: null,
@@ -86,16 +99,17 @@ export async function POST(request: Request) {
     const baseUrl = getPublicBaseUrl();
     const twimlUrl = new URL(`/api/calls/${session.id}/twiml`, baseUrl);
     const statusCallbackUrl = new URL(`/api/calls/${session.id}/status`, baseUrl);
+    const voiceRuntime = getVoiceRuntimeConfig();
 
-    // Allow an external voice runtime to take over immediately if configured.
-    if (process.env.TWILIO_VOICE_WEBHOOK_URL) {
-      twimlUrl.href = process.env.TWILIO_VOICE_WEBHOOK_URL;
+    if (voiceRuntime.mode === "external-twiml" && voiceRuntime.runtimeUrl) {
+      twimlUrl.href = voiceRuntime.runtimeUrl;
     }
 
     const call = await startTwilioCall({
       to: phoneNumber,
       twimlUrl: twimlUrl.toString(),
       statusCallbackUrl: statusCallbackUrl.toString(),
+      record: process.env.TWILIO_ENABLE_RECORDING === "true",
     });
 
     await updateCallSession(session.id, {
@@ -111,6 +125,7 @@ export async function POST(request: Request) {
       status: call.status,
       twiml_url: twimlUrl.toString(),
       status_callback_url: statusCallbackUrl.toString(),
+      voice_runtime: voiceRuntime,
       intro_preview: buildProviderIntroTwiml({
         providerName,
         patientName,
@@ -118,9 +133,11 @@ export async function POST(request: Request) {
         callbackNumber,
       }),
       note:
-        process.env.TWILIO_VOICE_WEBHOOK_URL
+        voiceRuntime.mode === "external-twiml"
           ? "Call will be handed to the configured Twilio voice webhook."
-          : "Call starts with a basic TwiML intro. A realtime voice-model bridge is not wired yet.",
+          : voiceRuntime.mode === "media-stream"
+            ? "Call will start with SafeStep disclosure and then hand off to the configured Twilio media stream runtime."
+            : "Call starts with a basic TwiML intro. Configure TWILIO_MEDIA_STREAM_URL to enable live AI voice handling.",
     });
   } catch (err) {
     logger.error("calls-start-route", "Failed to start call", err);

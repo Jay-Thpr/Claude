@@ -57,6 +57,8 @@ export interface BrowserAgentRequest {
   context?: string;
   returnFields?: string[];
   scheduleResult?: boolean;
+  scamCheckUrl?: string;
+  scamCheckNotifyPhone?: string;
 }
 
 export interface ScheduledEvent {
@@ -109,10 +111,41 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ success: false, error: "Invalid JSON body" } satisfies BrowserAgentError, { status: 400 });
   }
 
-  const { goal, context, returnFields, scheduleResult } = body;
+  const { goal, context, returnFields, scheduleResult, scamCheckUrl, scamCheckNotifyPhone } = body;
 
   if (!goal?.trim()) {
     return Response.json({ success: false, error: "goal is required" } satisfies BrowserAgentError, { status: 400 });
+  }
+
+  // Pre-flight scam check — block before running the browser agent
+  if (scamCheckUrl) {
+    try {
+      const scamRes = await fetch(new URL("/api/scam-check", request.url).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: scamCheckUrl,
+          actions: {
+            blockOnRisky: true,
+            ...(scamCheckNotifyPhone ? { notifyPhone: scamCheckNotifyPhone } : {}),
+          },
+        }),
+      });
+      if (scamRes.ok) {
+        const scamData = (await scamRes.json()) as { blocked?: boolean; classification?: string; explanation?: string };
+        if (scamData.blocked) {
+          return Response.json(
+            {
+              success: false,
+              error: `This website was flagged as potentially risky and the task was stopped for your safety. ${scamData.explanation ?? ""}`.trim(),
+            } satisfies BrowserAgentError,
+            { status: 403 }
+          );
+        }
+      }
+    } catch (err) {
+      logger.error("browser-agent", "scam pre-check failed, continuing", err);
+    }
   }
 
   const [profileContext, priorMemory] = await Promise.all([

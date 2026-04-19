@@ -26,6 +26,14 @@ export interface CallSessionRecord {
   twilio_call_sid?: string | null;
   appointment_context?: Record<string, unknown> | null;
   constraints?: string[] | null;
+  disposition?: string | null;
+  callback_requested?: boolean | null;
+  appointment_confirmed?: boolean | null;
+  voicemail_detected?: boolean | null;
+  call_duration_seconds?: number | null;
+  recording_url?: string | null;
+  recording_sid?: string | null;
+  transcript_excerpt?: string | null;
   outcome_summary?: string | null;
   status_message?: string | null;
   created_at?: string;
@@ -44,6 +52,14 @@ export async function createCallSession(
       callback_number: record.callback_number ?? null,
       appointment_context: record.appointment_context ?? null,
       constraints: record.constraints ?? [],
+      disposition: record.disposition ?? null,
+      callback_requested: record.callback_requested ?? null,
+      appointment_confirmed: record.appointment_confirmed ?? null,
+      voicemail_detected: record.voicemail_detected ?? null,
+      call_duration_seconds: record.call_duration_seconds ?? null,
+      recording_url: record.recording_url ?? null,
+      recording_sid: record.recording_sid ?? null,
+      transcript_excerpt: record.transcript_excerpt ?? null,
       outcome_summary: record.outcome_summary ?? null,
       status_message: record.status_message ?? null,
       created_at: new Date().toISOString(),
