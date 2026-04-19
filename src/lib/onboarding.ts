@@ -1,9 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import type { GoogleIdentity } from "@/lib/user-context";
-import type {
-  UserContextEntry,
-  UserProfileContext,
-} from "@/lib/response-schema";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  resolveGoogleAccount,
+  type GoogleIdentity,
+  type ResolvedGoogleAccount,
+} from "@/lib/google-account";
+import type { UserContextEntry } from "@/lib/response-schema";
 
 export type OnboardingProfileDraft = {
   name?: string;
@@ -17,7 +19,31 @@ export type OnboardingProfileDraft = {
   contextEntries: UserContextEntry[];
 };
 
-const DEFAULT_MODEL = process.env.SAFESTEP_GEMINI_MODEL || "gemini-2.5-flash-lite";
+export type OnboardingContextEntryInput = Pick<
+  UserContextEntry,
+  "category" | "title" | "detail" | "tags" | "priority"
+>;
+
+export type OnboardingProfileUpsert = {
+  userId: string;
+  googleEmail: string | null;
+  googleName: string | null;
+  name: string;
+  email: string | null;
+  timezone: string | null;
+  ageGroup: string | null;
+  calendarConnected: boolean;
+  loginCompletedAt: string | null;
+  supportNeeds: string[];
+  preferences: string[];
+  conditions: string[];
+  notes: string | null;
+  rawIntakeText: string;
+  onboardingSummary: string | null;
+  onboardingCompletedAt: string | null;
+};
+
+const DEFAULT_MODEL = process.env.SAFESTEP_GEMINI_MODEL || "gemini-3.1-flash-lite";
 
 function buildGenAI() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -26,6 +52,147 @@ function buildGenAI() {
   }
 
   return new GoogleGenerativeAI(apiKey);
+}
+
+export function toStringList(value: unknown) {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(/[\n,]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+export function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.map((item) => item.trim()).filter(Boolean)));
+}
+
+export function buildBasicInfoContextEntries(
+  userId: string,
+  category: "condition" | "preference" | "support",
+  items: string[],
+) {
+  return items.map((item, index) => ({
+    user_id: userId,
+    category,
+    title: item.slice(0, 48),
+    detail: item,
+    tags: item
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length > 2)
+      .slice(0, 4),
+    priority: index < 2 ? 1 : 2,
+  }));
+}
+
+export function buildBasicInfoRawIntakeText(params: {
+  name: string;
+  email: string | null;
+  ageGroup: string | null;
+  supportNeeds: string[];
+  preferences: string[];
+  conditions: string[];
+  notes: string | null;
+}) {
+  return [
+    `Name: ${params.name}`,
+    params.email ? `Email: ${params.email}` : null,
+    params.ageGroup ? `Age group: ${params.ageGroup}` : null,
+    `Support needs: ${params.supportNeeds.join(", ") || "None"}`,
+    `Preferences: ${params.preferences.join(", ") || "None"}`,
+    `Conditions: ${params.conditions.join(", ") || "None"}`,
+    params.notes ? `Notes: ${params.notes}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export async function upsertOnboardingProfile(
+  supabase: SupabaseClient,
+  profile: OnboardingProfileUpsert,
+) {
+  const now = new Date().toISOString();
+  const buildRow = (includeLoginCompletedAt: boolean) => ({
+    user_id: profile.userId,
+    google_email: profile.googleEmail,
+    google_name: profile.googleName,
+    name: profile.name,
+    email: profile.email,
+    timezone: profile.timezone,
+    age_group: profile.ageGroup,
+    calendar_connected: profile.calendarConnected,
+    ...(includeLoginCompletedAt && profile.loginCompletedAt
+      ? { login_completed_at: profile.loginCompletedAt }
+      : {}),
+    support_needs: profile.supportNeeds,
+    preferences: profile.preferences,
+    conditions: profile.conditions,
+    notes: profile.notes,
+    raw_intake_text: profile.rawIntakeText,
+    onboarding_summary: profile.onboardingSummary,
+    onboarding_completed_at: profile.onboardingCompletedAt,
+    updated_at: now,
+  });
+
+  const attempt = async (includeLoginCompletedAt: boolean) =>
+    supabase.from("user_profiles").upsert(buildRow(includeLoginCompletedAt), {
+      onConflict: "user_id",
+    });
+
+  let { error } = await attempt(true);
+  if (error && /login_completed_at|column .* does not exist/i.test(error.message || "")) {
+    ({ error } = await attempt(false));
+  }
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function replaceOnboardingContextEntries(
+  supabase: SupabaseClient,
+  userId: string,
+  entries: OnboardingContextEntryInput[],
+  options?: { categories?: ("condition" | "preference" | "support")[] },
+) {
+  let deleteQuery = supabase.from("user_context_entries").delete().eq("user_id", userId);
+  if (options?.categories?.length) {
+    deleteQuery = deleteQuery.in("category", options.categories);
+  }
+
+  const { error: deleteError } = await deleteQuery;
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  if (!entries.length) {
+    return;
+  }
+
+  const { error: insertError } = await supabase.from("user_context_entries").insert(
+    entries.map((entry) => ({
+      user_id: userId,
+      category: entry.category,
+      title: entry.title,
+      detail: entry.detail,
+      tags: entry.tags,
+      priority: entry.priority ?? null,
+    })),
+  );
+
+  if (insertError) {
+    throw insertError;
+  }
 }
 
 function safeParseJson<T>(text: string): T | null {
@@ -167,19 +334,21 @@ ${intakeText}`;
 }
 
 export function buildProfileUpsertValues(
-  identity: GoogleIdentity,
+  identity: GoogleIdentity | ResolvedGoogleAccount,
   draft: OnboardingProfileDraft,
   intakeText: string,
-): Partial<UserProfileContext> & { userId: string } {
+): OnboardingProfileUpsert {
+  const googleAccount = resolveGoogleAccount(identity);
   return {
-    userId: identity.userId,
-    googleEmail: identity.email || null,
-    googleName: identity.name || null,
-    name: draft.name || identity.name || identity.email || "SafeStep user",
-    email: identity.email || null,
+    userId: googleAccount.userId || identity.userId || googleAccount.email || "safestep-user",
+    googleEmail: googleAccount.email || null,
+    googleName: googleAccount.name || null,
+    name: draft.name || googleAccount.name || googleAccount.email || "SafeStep user",
+    email: googleAccount.email || null,
     timezone: draft.timezone || "America/Los_Angeles",
     ageGroup: draft.ageGroup || null,
-    calendarConnected: true,
+    calendarConnected: googleAccount.connected,
+    loginCompletedAt: new Date().toISOString(),
     supportNeeds: draft.supportNeeds,
     preferences: draft.preferences,
     conditions: draft.conditions,

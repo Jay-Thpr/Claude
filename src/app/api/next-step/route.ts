@@ -12,6 +12,15 @@ export async function POST(request: Request) {
       taskMemory: body.taskMemory
         ? {
             currentTask: body.taskMemory.current_task,
+            taskType: body.taskMemory.task_type,
+            taskGoal: body.taskMemory.task_goal,
+            currentStageIndex: body.taskMemory.current_stage_index,
+            currentStageTitle: body.taskMemory.current_stage_title,
+            currentStageDetail: body.taskMemory.current_stage_detail,
+            nextStageTitle: body.taskMemory.next_stage_title,
+            nextStageDetail: body.taskMemory.next_stage_detail,
+            stagePlan: body.taskMemory.stage_plan,
+            status: body.taskMemory.status,
             lastStep: body.taskMemory.last_step,
             currentUrl: body.taskMemory.current_url,
             pageTitle: body.taskMemory.page_title,

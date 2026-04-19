@@ -13,7 +13,8 @@ insert into public.user_profiles (
   notes,
   raw_intake_text,
   onboarding_summary,
-  onboarding_completed_at
+  onboarding_completed_at,
+  login_completed_at
 )
 values (
   'demo-user-001',
@@ -41,6 +42,7 @@ values (
   'Prefers calm, direct wording and should be warned before submitting forms or payment details.',
   'Demo intake text for the hackathon prototype.',
   'Demo user seeded from the sample intake flow.',
+  now(),
   now()
 )
 on conflict (user_id) do update set
@@ -58,6 +60,7 @@ on conflict (user_id) do update set
   raw_intake_text = excluded.raw_intake_text,
   onboarding_summary = excluded.onboarding_summary,
   onboarding_completed_at = excluded.onboarding_completed_at,
+  login_completed_at = excluded.login_completed_at,
   updated_at = now();
 
 insert into public.user_context_entries (
@@ -106,6 +109,15 @@ on conflict do nothing;
 insert into public.task_memory (
   user_id,
   current_task,
+  task_type,
+  task_goal,
+  current_stage_index,
+  current_stage_title,
+  current_stage_detail,
+  next_stage_title,
+  next_stage_detail,
+  stage_plan,
+  status,
   last_step,
   current_url,
   page_title,
@@ -114,6 +126,28 @@ insert into public.task_memory (
 values (
   'demo-user-001',
   'Reviewing the upcoming cardiology appointment',
+  'appointment-prep',
+  'Get ready for the cardiology appointment step by step',
+  0,
+  'Check the doctor website',
+  'Open the hospital portal and confirm the visit details.',
+  'Pack what you need',
+  'Put the medication list, insurance card, and notes in a bag.',
+  jsonb_build_array(
+    jsonb_build_object(
+      'title', 'Check the doctor website',
+      'detail', 'Open the hospital portal and confirm the visit details.'
+    ),
+    jsonb_build_object(
+      'title', 'Pack what you need',
+      'detail', 'Put the medication list, insurance card, and notes in a bag.'
+    ),
+    jsonb_build_object(
+      'title', 'Leave the house',
+      'detail', 'Grab your keys and leave 15 minutes early.'
+    )
+  ),
+  'active',
   'Opened the patient portal and checked the visit details.',
   'https://myhealth.ucsd.edu',
   'MyChart - Appointments',
@@ -121,6 +155,15 @@ values (
 )
 on conflict (user_id) do update set
   current_task = excluded.current_task,
+  task_type = excluded.task_type,
+  task_goal = excluded.task_goal,
+  current_stage_index = excluded.current_stage_index,
+  current_stage_title = excluded.current_stage_title,
+  current_stage_detail = excluded.current_stage_detail,
+  next_stage_title = excluded.next_stage_title,
+  next_stage_detail = excluded.next_stage_detail,
+  stage_plan = excluded.stage_plan,
+  status = excluded.status,
   last_step = excluded.last_step,
   current_url = excluded.current_url,
   page_title = excluded.page_title,
@@ -148,3 +191,27 @@ values (
   'UCSD Medical Center',
   'Arrive 15 minutes early.'
 );
+
+insert into public.appointments (
+  user_id,
+  title,
+  start_time,
+  end_time,
+  description,
+  portal_link,
+  source,
+  location,
+  prep_notes
+)
+values (
+  'demo-user-001',
+  'Doctor appointment with Dr. Patel',
+  timezone('utc', now() + interval '2 day')::timestamptz,
+  timezone('utc', now() + interval '2 day 30 minutes')::timestamptz,
+  'Review the follow-up plan and bring the note that says to remember the retainers.',
+  'https://myhealth.ucsd.edu',
+  'seed',
+  'UCSD Medical Center',
+  'Remember to bring retainers.'
+)
+on conflict do nothing;

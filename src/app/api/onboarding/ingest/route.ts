@@ -1,9 +1,16 @@
 import { cookies } from "next/headers";
-import { loadGoogleIdentityFromCookies } from "@/lib/user-context";
+import { DEMO_USER_ID } from "@/lib/mock-context";
+import {
+  type GoogleIdentity,
+  loadGoogleIdentityFromCookies,
+  resolveGoogleAccount,
+} from "@/lib/google-account";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import {
   buildProfileUpsertValues,
   extractOnboardingDraft,
+  replaceOnboardingContextEntries,
+  upsertOnboardingProfile,
 } from "@/lib/onboarding";
 
 type OnboardingRequest = {
@@ -23,7 +30,8 @@ export async function POST(request: Request) {
 
     const cookieStore = await cookies();
     const identity = await loadGoogleIdentityFromCookies(cookieStore);
-    if (!identity?.email) {
+    const googleAccount = resolveGoogleAccount(identity);
+    if (!googleAccount.email) {
       return Response.json(
         {
           error:
@@ -32,6 +40,13 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
+
+    const safeGoogleAccount: GoogleIdentity = {
+      userId: googleAccount.userId || googleAccount.email?.toLowerCase() || DEMO_USER_ID,
+      email: googleAccount.email || undefined,
+      name: googleAccount.name || undefined,
+      connected: googleAccount.connected,
+    };
 
     const supabase = createServerSupabaseClient();
     if (!supabase) {
@@ -45,64 +60,16 @@ export async function POST(request: Request) {
     }
 
     const draft = await extractOnboardingDraft(intakeText, identity);
-    const profileValues = buildProfileUpsertValues(identity, draft, intakeText);
+    const profileValues = buildProfileUpsertValues(safeGoogleAccount, draft, intakeText);
+    const userId = profileValues.userId;
 
-    const { error: profileError } = await supabase.from("user_profiles").upsert(
-      {
-        user_id: profileValues.userId,
-        google_email: profileValues.googleEmail,
-        google_name: profileValues.googleName,
-        name: profileValues.name,
-        email: profileValues.email,
-        timezone: profileValues.timezone,
-        age_group: profileValues.ageGroup,
-        calendar_connected: true,
-        support_needs: profileValues.supportNeeds,
-        preferences: profileValues.preferences,
-        conditions: profileValues.conditions,
-        notes: profileValues.notes,
-        raw_intake_text: profileValues.rawIntakeText,
-        onboarding_summary: profileValues.onboardingSummary,
-        onboarding_completed_at: profileValues.onboardingCompletedAt,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" },
-    );
-
-    if (profileError) {
-      throw profileError;
-    }
-
-    const { error: deleteError } = await supabase
-      .from("user_context_entries")
-      .delete()
-      .eq("user_id", identity.userId);
-
-    if (deleteError) {
-      throw deleteError;
-    }
-
-    if (draft.contextEntries.length > 0) {
-      const { error: entriesError } = await supabase.from("user_context_entries").insert(
-        draft.contextEntries.map((entry) => ({
-          user_id: identity.userId,
-          category: entry.category,
-          title: entry.title,
-          detail: entry.detail,
-          tags: entry.tags,
-          priority: entry.priority ?? null,
-        })),
-      );
-
-      if (entriesError) {
-        throw entriesError;
-      }
-    }
+    await upsertOnboardingProfile(supabase, profileValues);
+    await replaceOnboardingContextEntries(supabase, userId, draft.contextEntries);
 
     return Response.json({
       success: true,
-      userId: identity.userId,
-      googleEmail: identity.email,
+      userId,
+      googleEmail: googleAccount.email,
       profile: profileValues,
       summary: draft.summary,
       entriesCount: draft.contextEntries.length,

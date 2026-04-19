@@ -1,10 +1,25 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 
 interface BrowserTaskAreaProps {
   onUrlChange: (url: string) => void;
   onPageTitleChange: (title: string) => void;
+  panelTitle?: string;
+  panelCopy?: string;
+  examplePrompts?: string[];
+  initialTask?: string;
+}
+
+export interface BrowserTaskAreaHandle {
+  runTask: (goal: string) => void;
 }
 
 interface StepEvent {
@@ -16,11 +31,22 @@ interface StepEvent {
   status?: string;
 }
 
-export default function BrowserTaskArea({
+const BrowserTaskArea = forwardRef<BrowserTaskAreaHandle, BrowserTaskAreaProps>(function BrowserTaskArea(
+{
   onUrlChange,
   onPageTitleChange,
-}: BrowserTaskAreaProps) {
-  const [taskInput, setTaskInput] = useState("");
+  panelTitle = "Browser Assistant",
+  panelCopy = "Type what you'd like to do in the box above. I'll open a browser and guide you through it step by step.",
+  examplePrompts = [
+    '"Go to my pharmacy website and look for refill options"',
+    '"Search Google for my hospital portal"',
+    '"Go to Medicare.gov and find my benefits"',
+  ],
+  initialTask = "",
+}: BrowserTaskAreaProps,
+ref,
+) {
+  const [taskInput, setTaskInput] = useState(initialTask);
   const [status, setStatus] = useState<"idle" | "running" | "paused" | "error">("idle");
   const [steps, setSteps] = useState<StepEvent[]>([]);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -39,96 +65,114 @@ export default function BrowserTaskArea({
     };
   }, []);
 
-  const startTask = useCallback(async () => {
-    if (!taskInput.trim() || status === "running") return;
+  const runTask = useCallback(
+    async (goal: string) => {
+      if (!goal.trim() || status === "running") return;
 
-    setSteps([]);
-    setStatus("running");
-    stepCountRef.current = 0;
+      setTaskInput(goal.trim());
+      setSteps([]);
+      setStatus("running");
+      stepCountRef.current = 0;
 
-    // Notify parent about the task
-    onPageTitleChange(taskInput.trim());
+      // Notify parent about the task
+      onPageTitleChange(goal.trim());
 
-    try {
-      const res = await fetch("http://localhost:8000/api/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task: taskInput.trim() }),
-      });
+      try {
+        const res = await fetch("http://localhost:8000/api/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task: goal.trim() }),
+        });
 
-      if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try {
-          const err = await res.json();
-          msg = err.detail ?? msg;
-        } catch {
-          msg = await res.text().catch(() => msg);
-        }
-        setStatus("error");
-        setSteps((prev) => [
-          ...prev,
-          { type: "error", message: msg },
-        ]);
-        return;
-      }
-
-      // Open SSE stream
-      const es = new EventSource("http://localhost:8000/api/stream");
-      eventSourceRef.current = es;
-
-      es.onmessage = (e) => {
-        const event: StepEvent = JSON.parse(e.data);
-
-        if (event.type === "ping") return;
-
-        if (event.type === "status") {
-          if (event.status) {
-            setStatus(event.status as "idle" | "running" | "paused" | "error");
+        if (!res.ok) {
+          let msg = `HTTP ${res.status}`;
+          try {
+            const err = await res.json();
+            msg = err.detail ?? msg;
+          } catch {
+            msg = await res.text().catch(() => msg);
           }
+          setStatus("error");
+          setSteps((prev) => [
+            ...prev,
+            { type: "error", message: msg },
+          ]);
           return;
         }
 
-        if (event.type === "step") {
-          stepCountRef.current += 1;
-          event.step = stepCountRef.current;
+        // Open SSE stream
+        const es = new EventSource("http://localhost:8000/api/stream");
+        eventSourceRef.current = es;
 
-          // Track URLs the agent visits
-          if (event.action?.includes("navigate")) {
-            const urlMatch = event.action.match(/navigate → (.+)/);
-            if (urlMatch) {
-              onUrlChange(urlMatch[1]);
+        es.onmessage = (e) => {
+          const event: StepEvent = JSON.parse(e.data);
+
+          if (event.type === "ping") return;
+
+          if (event.type === "status") {
+            if (event.status) {
+              setStatus(event.status as "idle" | "running" | "paused" | "error");
+            }
+            return;
+          }
+
+          if (event.type === "step") {
+            stepCountRef.current += 1;
+            event.step = stepCountRef.current;
+
+            // Track URLs the agent visits
+            if (event.action?.includes("navigate")) {
+              const urlMatch = event.action.match(/navigate → (.+)/);
+              if (urlMatch) {
+                onUrlChange(urlMatch[1]);
+              }
             }
           }
-        }
 
-        if (
-          event.type === "done" ||
-          event.type === "paused" ||
-          event.type === "error"
-        ) {
-          setStatus(
-            event.type === "done" ? "idle" : (event.type as "paused" | "error")
-          );
+          if (
+            event.type === "done" ||
+            event.type === "paused" ||
+            event.type === "error"
+          ) {
+            setStatus(
+              event.type === "done" ? "idle" : (event.type as "paused" | "error")
+            );
+            es.close();
+            eventSourceRef.current = null;
+          }
+
+          setSteps((prev) => [...prev, event]);
+        };
+
+        es.onerror = () => {
+          setStatus("error");
           es.close();
           eventSourceRef.current = null;
-        }
-
-        setSteps((prev) => [...prev, event]);
-      };
-
-      es.onerror = () => {
+        };
+      } catch {
         setStatus("error");
-        es.close();
-        eventSourceRef.current = null;
-      };
-    } catch {
-      setStatus("error");
-      setSteps((prev) => [
-        ...prev,
-        { type: "error", message: "Cannot reach the browser agent. Make sure the backend is running on port 8000." },
-      ]);
-    }
-  }, [taskInput, status, onUrlChange, onPageTitleChange]);
+        setSteps((prev) => [
+          ...prev,
+          { type: "error", message: "Cannot reach the browser agent. Make sure the backend is running on port 8000." },
+        ]);
+      }
+    },
+    [status, onUrlChange, onPageTitleChange],
+  );
+
+  const startTask = useCallback(() => {
+    void runTask(taskInput.trim());
+  }, [taskInput, runTask]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      runTask(goal: string) {
+        void runTask(goal);
+      },
+    }),
+    [runTask],
+  );
 
   const getStatusBadge = () => {
     const configs = {
@@ -162,7 +206,7 @@ export default function BrowserTaskArea({
       <div className="p-6 bg-white border-b border-surface-200">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-text-primary">
-            Browser Assistant
+            {panelTitle}
           </h2>
           {getStatusBadge()}
         </div>
@@ -210,18 +254,13 @@ export default function BrowserTaskArea({
               Ready to help you browse
             </h3>
             <p className="text-lg text-text-secondary max-w-md leading-relaxed">
-              Type what you&apos;d like to do in the box above. I&apos;ll open a
-              browser and guide you through it step by step.
+              {panelCopy}
             </p>
             <div className="mt-8 space-y-3 text-left w-full max-w-sm">
               <p className="text-sm font-semibold text-text-muted uppercase tracking-wide">
                 Try saying:
               </p>
-              {[
-                '"Go to my pharmacy website and look for refill options"',
-                '"Search Google for my hospital portal"',
-                '"Go to Medicare.gov and find my benefits"',
-              ].map((example, i) => (
+              {examplePrompts.map((example, i) => (
                 <button
                   key={i}
                   onClick={() => setTaskInput(example.replace(/"/g, ""))}
@@ -282,4 +321,6 @@ export default function BrowserTaskArea({
       </div>
     </div>
   );
-}
+});
+
+export default BrowserTaskArea;

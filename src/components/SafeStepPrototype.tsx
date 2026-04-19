@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DEMO_PAGE_LIBRARY } from "@/lib/mock-context";
+import { DEFAULT_APPOINTMENT_STAGE_PLAN } from "@/lib/task-flow";
 import type {
   CopilotMode,
   CopilotResponse,
@@ -41,15 +42,43 @@ type AssistantMessage = CopilotResponse & {
   createdAt: string;
 };
 
+type TaskMemoryPayload = {
+  current_task: string | null;
+  task_type?: string | null;
+  task_goal?: string | null;
+  current_stage_index?: number | null;
+  current_stage_title?: string | null;
+  current_stage_detail?: string | null;
+  next_stage_title?: string | null;
+  next_stage_detail?: string | null;
+  stage_plan?: TaskMemoryState["stagePlan"];
+  status?: string | null;
+  last_step: string | null;
+  current_url?: string | null;
+  page_title?: string | null;
+};
+
 const PAGE_BY_ID = Object.fromEntries(DEMO_PAGE_LIBRARY.map((page) => [page.id, page])) as Record<
   PageKey,
   (typeof DEMO_PAGE_LIBRARY)[number]
 >;
 
-function buildTaskMemory(page: (typeof DEMO_PAGE_LIBRARY)[number], currentTask?: string): TaskMemoryState {
+function buildTaskMemory(
+  page: (typeof DEMO_PAGE_LIBRARY)[number],
+  memory?: TaskMemoryState | null,
+): TaskMemoryState {
   return {
-    currentTask: currentTask || page.summary,
-    lastStep: `Viewing ${page.title}.`,
+    currentTask: memory?.currentTask || page.summary,
+    taskType: memory?.taskType || null,
+    taskGoal: memory?.taskGoal || page.summary,
+    currentStageIndex: memory?.currentStageIndex ?? 0,
+    currentStageTitle: memory?.currentStageTitle || page.title,
+    currentStageDetail: memory?.currentStageDetail || page.summary,
+    nextStageTitle: memory?.nextStageTitle || null,
+    nextStageDetail: memory?.nextStageDetail || null,
+    stagePlan: memory?.stagePlan || [],
+    status: memory?.status || "active",
+    lastStep: memory?.lastStep || `Viewing ${page.title}.`,
     currentUrl: page.url,
     pageTitle: page.title,
   };
@@ -64,6 +93,28 @@ function riskBadge(riskLevel?: string) {
     default:
       return "bg-warning/10 text-warning border-warning/20";
   }
+}
+
+function normalizeTaskMemory(payload: TaskMemoryPayload | null): TaskMemoryState | null {
+  if (!payload) {
+    return null;
+  }
+
+  return {
+    currentTask: payload.current_task,
+    taskType: payload.task_type ?? null,
+    taskGoal: payload.task_goal ?? null,
+    currentStageIndex: payload.current_stage_index ?? null,
+    currentStageTitle: payload.current_stage_title ?? null,
+    currentStageDetail: payload.current_stage_detail ?? null,
+    nextStageTitle: payload.next_stage_title ?? null,
+    nextStageDetail: payload.next_stage_detail ?? null,
+    stagePlan: payload.stage_plan ?? [],
+    status: payload.status ?? null,
+    lastStep: payload.last_step,
+    currentUrl: payload.current_url ?? null,
+    pageTitle: payload.page_title ?? null,
+  };
 }
 
 export default function SafeStepPrototype() {
@@ -81,9 +132,11 @@ export default function SafeStepPrototype() {
   const [onboardingText, setOnboardingText] = useState("");
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [onboardingMessage, setOnboardingMessage] = useState<string | null>(null);
+  const [flowLoading, setFlowLoading] = useState(false);
+  const [flowMessage, setFlowMessage] = useState<string | null>(null);
 
   const activePage = PAGE_BY_ID[activePageId];
-  const browserMemory = useMemo(() => buildTaskMemory(activePage, memory?.currentTask || undefined), [activePage, memory?.currentTask]);
+  const browserMemory = useMemo(() => buildTaskMemory(activePage, memory), [activePage, memory]);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,7 +150,7 @@ export default function SafeStepPrototype() {
           fetch("/api/user-context"),
         ]);
 
-        const memoryData = (await memoryRes.json()) as TaskMemoryState;
+        const memoryData = normalizeTaskMemory((await memoryRes.json()) as TaskMemoryPayload);
         const appointmentPayload = (await appointmentRes.json()) as {
           appointment?: LoadedAppointment | null;
           message?: string;
@@ -125,6 +178,15 @@ export default function SafeStepPrototype() {
         if (!cancelled) {
           setMemory({
             currentTask: "Reviewing the next appointment",
+            taskType: "appointment-prep",
+            taskGoal: "Get ready for the cardiology appointment step by step",
+            currentStageIndex: 0,
+            currentStageTitle: "Check the doctor website",
+            currentStageDetail: "Open the hospital portal and confirm the visit details.",
+            nextStageTitle: "Pack what you need",
+            nextStageDetail: "Put the medication list, insurance card, and notes in a bag.",
+            stagePlan: DEFAULT_APPOINTMENT_STAGE_PLAN,
+            status: "active",
             lastStep: "Opened the portal and asked SafeStep for help.",
             currentUrl: activePage.url,
             pageTitle: activePage.title,
@@ -170,6 +232,87 @@ export default function SafeStepPrototype() {
       cancelled = true;
     };
   }, [activePage.title, activePage.url]);
+
+  const startDemoTaskFlow = async () => {
+    setFlowLoading(true);
+    setFlowMessage(null);
+
+    try {
+      const res = await fetch("/api/task-flow", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "start",
+          current_task: "Reviewing the upcoming cardiology appointment",
+          task_goal: "Get ready for the cardiology appointment step by step",
+          task_type: "appointment-prep",
+          current_stage_index: 0,
+          stage_plan: DEFAULT_APPOINTMENT_STAGE_PLAN,
+          last_step: "Opened the portal and asked SafeStep for help.",
+          current_url: activePage.url,
+          page_title: activePage.title,
+          status: "active",
+        }),
+      });
+
+      type TaskFlowResponse = TaskMemoryPayload & {
+        message?: string;
+        success?: boolean;
+      };
+      const response = (await res.json()) as TaskFlowResponse;
+      const data = normalizeTaskMemory(response);
+      if (!res.ok || response.success === false || !data) {
+        throw new Error(response.message || "Unable to save the staged flow.");
+      }
+
+      setMemory(data);
+      setFlowMessage(response.message || "Appointment flow started.");
+    } catch (error) {
+      setFlowMessage(
+        error instanceof Error ? error.message : "Unable to start the appointment flow right now.",
+      );
+    } finally {
+      setFlowLoading(false);
+    }
+  };
+
+  const advanceDemoTaskFlow = async () => {
+    setFlowLoading(true);
+    setFlowMessage(null);
+
+    try {
+      const res = await fetch("/api/task-flow", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "advance",
+        }),
+      });
+
+      type TaskFlowResponse = TaskMemoryPayload & {
+        message?: string;
+        success?: boolean;
+      };
+      const response = (await res.json()) as TaskFlowResponse;
+      const data = normalizeTaskMemory(response);
+      if (!res.ok || response.success === false || !data) {
+        throw new Error(response.message || "Unable to advance the staged flow.");
+      }
+
+      setMemory(data);
+      setFlowMessage(response.message || "Moved to the next stage.");
+    } catch (error) {
+      setFlowMessage(
+        error instanceof Error ? error.message : "Unable to advance the flow right now.",
+      );
+    } finally {
+      setFlowLoading(false);
+    }
+  };
 
   const sendRequest = async (mode: CopilotMode, query?: string) => {
     setLoading(true);
@@ -223,6 +366,15 @@ export default function SafeStepPrototype() {
           },
           body: JSON.stringify({
             current_task: data.memoryUpdate.currentTask || browserMemory.currentTask,
+            task_type: browserMemory.taskType,
+            task_goal: browserMemory.taskGoal,
+            current_stage_index: browserMemory.currentStageIndex,
+            current_stage_title: browserMemory.currentStageTitle,
+            current_stage_detail: browserMemory.currentStageDetail,
+            next_stage_title: browserMemory.nextStageTitle,
+            next_stage_detail: browserMemory.nextStageDetail,
+            stage_plan: browserMemory.stagePlan,
+            status: browserMemory.status,
             last_step: data.memoryUpdate.lastStep || browserMemory.lastStep,
             current_url: activePage.url,
             page_title: activePage.title,
@@ -539,6 +691,41 @@ export default function SafeStepPrototype() {
                         ? "Loading the user context and appointment data..."
                         : memory?.currentTask || "SafeStep is ready to help you continue."}
                     </p>
+                    {memory?.currentStageTitle ? (
+                      <div className="mt-3 rounded-2xl border border-primary-100 bg-white p-3">
+                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary-700">
+                          Current stage
+                        </p>
+                        <p className="mt-1 text-base text-text-primary">{memory.currentStageTitle}</p>
+                        {memory.currentStageDetail ? (
+                          <p className="mt-1 text-sm text-text-secondary">{memory.currentStageDetail}</p>
+                        ) : null}
+                        {memory.nextStageTitle ? (
+                          <p className="mt-2 text-sm font-medium text-text-secondary">
+                            Next: {memory.nextStageTitle}
+                          </p>
+                        ) : null}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            onClick={() => void startDemoTaskFlow()}
+                            disabled={flowLoading}
+                            className="rounded-full border border-primary-200 bg-white px-3 py-2 text-sm font-semibold text-primary-700 transition hover:border-primary-300 disabled:opacity-50"
+                          >
+                            Start appointment flow
+                          </button>
+                          <button
+                            onClick={() => void advanceDemoTaskFlow()}
+                            disabled={flowLoading || !memory.currentStageTitle}
+                            className="rounded-full border border-primary-200 bg-white px-3 py-2 text-sm font-semibold text-primary-700 transition hover:border-primary-300 disabled:opacity-50"
+                          >
+                            Next stage
+                          </button>
+                        </div>
+                        {flowMessage ? (
+                          <p className="mt-2 text-sm text-text-secondary">{flowMessage}</p>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="rounded-[22px] border border-surface-200 bg-[#fcfbf8] p-4">
