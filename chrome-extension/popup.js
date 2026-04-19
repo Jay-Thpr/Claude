@@ -200,6 +200,15 @@ function handleShowContent() {
   appendMessage(pageContent || '(no page text captured)', 'assistant', 'neutral');
 }
 
+async function triggerPageModal({ tone, explanation, bullets }) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) {
+      chrome.tabs.sendMessage(tab.id, { type: 'SAFESTEP_ALERT', tone, explanation, bullets }).catch(() => {});
+    }
+  } catch { /* non-critical */ }
+}
+
 function showAlertBanner(tone, bullets) {
   const banner = document.getElementById('alert-banner');
   const title = document.getElementById('alert-title');
@@ -232,7 +241,10 @@ async function autoAnalyzePage() {
     const { explanation, tone, bullets } = cached[cacheKey];
     appendMessage(explanation, 'assistant', tone, bullets);
     if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
-    if (tone === 'danger') switchTab('chat');
+    if (tone === 'danger') {
+      switchTab('chat');
+      triggerPageModal({ tone, explanation, bullets });
+    }
     return;
   }
 
@@ -250,7 +262,10 @@ async function autoAnalyzePage() {
     const explanation = data.explanation || 'I checked this page for you.';
     appendMessage(explanation, 'assistant', tone, bullets);
     if (tone === 'danger' || tone === 'warning') showAlertBanner(tone, bullets);
-    if (tone === 'danger') switchTab('chat');
+    if (tone === 'danger') {
+      switchTab('chat');
+      triggerPageModal({ tone, explanation, bullets });
+    }
     chrome.storage.session.set({ [cacheKey]: { explanation, tone, bullets } }).catch(() => {});
   } catch {
     /* silent */
