@@ -202,8 +202,17 @@ function handleShowContent() {
 
 async function autoAnalyzePage() {
   if (!pageContent && !pageUrl) return;
-  setActionButtonsDisabled(true);
 
+  // Cache per URL for the session — avoid re-calling on every popup open
+  const cacheKey = `analysis:${pageUrl}`;
+  const cached = await chrome.storage.session.get(cacheKey).catch(() => ({}));
+  if (cached[cacheKey]) {
+    const { explanation, tone, bullets } = cached[cacheKey];
+    appendMessage(explanation, 'assistant', tone, bullets);
+    return;
+  }
+
+  setActionButtonsDisabled(true);
   try {
     const res = await fetch(`${API_BASE}/api/scam-check`, {
       method: 'POST',
@@ -214,11 +223,12 @@ async function autoAnalyzePage() {
     const data = await res.json();
     const tone = deriveTone(data.classification || data.riskLevel);
     const bullets = Array.isArray(data.suspicious_signals) && data.suspicious_signals.length
-      ? data.suspicious_signals
-      : null;
-    appendMessage(data.explanation || 'I checked this page for you.', 'assistant', tone, bullets);
+      ? data.suspicious_signals : null;
+    const explanation = data.explanation || 'I checked this page for you.';
+    appendMessage(explanation, 'assistant', tone, bullets);
+    chrome.storage.session.set({ [cacheKey]: { explanation, tone, bullets } }).catch(() => {});
   } catch {
-    /* silent — don't clutter chat on init failure */
+    /* silent */
   } finally {
     setActionButtonsDisabled(false);
   }
