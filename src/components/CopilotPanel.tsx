@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect } from "react";
 interface CopilotPanelProps {
   currentUrl: string;
   currentPageTitle: string;
+  onClose: () => void;
 }
 
 interface AssistantResponse {
@@ -33,6 +34,7 @@ interface CalendarStatus {
 export default function CopilotPanel({
   currentUrl,
   currentPageTitle,
+  onClose,
 }: CopilotPanelProps) {
   const [responses, setResponses] = useState<AssistantResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -249,26 +251,24 @@ export default function CopilotPanel({
   };
 
   return (
-    <div className="copilot-panel" id="copilot-panel">
-      {/* Header */}
-      <div className="p-6 border-b border-surface-200">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xl">
-            🦮
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-text-primary leading-tight">
-              SafeStep
-            </h1>
-            <p className="text-sm text-text-muted">
-              Your browsing companion
-            </p>
-          </div>
+    <div className="flex flex-col h-full" id="copilot-panel">
+      {/* Panel header */}
+      <div className="panel-header">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🦮</span>
+          <span className="text-lg font-bold text-text-primary">SafeStep</span>
         </div>
+        <button
+          onClick={onClose}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:bg-surface-200 hover:text-text-primary transition-colors text-lg"
+          aria-label="Close panel"
+        >
+          ✕
+        </button>
       </div>
 
       {/* Calendar connection */}
-      <div className="p-4 border-b border-surface-200 bg-surface-50">
+      <div className="panel-section bg-surface-50">
         <div className="rounded-2xl border border-surface-200 bg-white p-4">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
@@ -349,7 +349,7 @@ export default function CopilotPanel({
       </div>
 
       {/* Action Buttons */}
-      <div className="p-4 space-y-3 border-b border-surface-200">
+      <div className="panel-section space-y-2">
         <button
           id="btn-next-step"
           className="action-btn action-btn-primary"
@@ -362,7 +362,7 @@ export default function CopilotPanel({
 
         <button
           id="btn-scam-check"
-          className="action-btn action-btn-secondary"
+          className="action-btn action-btn-amber"
           onClick={handleScamCheck}
           disabled={isLoading}
         >
@@ -372,7 +372,7 @@ export default function CopilotPanel({
 
         <button
           id="btn-appointments"
-          className="action-btn action-btn-secondary"
+          className="action-btn action-btn-indigo"
           onClick={handleAppointments}
           disabled={isLoading}
         >
@@ -381,7 +381,7 @@ export default function CopilotPanel({
         </button>
 
         {/* Secondary actions */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-1">
           <button
             id="btn-memory"
             className="action-btn action-btn-secondary flex-1 !text-base !py-3"
@@ -407,7 +407,7 @@ export default function CopilotPanel({
       </div>
 
       {/* Free-text input */}
-      <div className="p-4 border-b border-surface-200">
+      <div className="panel-section">
         <div className="relative">
           <input
             id="free-text-input"
@@ -434,7 +434,7 @@ export default function CopilotPanel({
       </div>
 
       {/* Responses */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3" id="responses-area">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3" id="responses-area">
         {isLoading && (
           <div className="response-card flex items-center gap-3">
             <div className="spinner" />
